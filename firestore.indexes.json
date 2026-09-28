@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "hero_users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "role",  "order": "ASCENDING" },
+        { "fieldPath": "email", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

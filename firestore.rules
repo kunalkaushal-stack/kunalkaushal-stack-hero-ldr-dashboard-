@@ -1,0 +1,42 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /hero_users/{uid} {
+      // Any authenticated user can read their own doc.
+      // Admin can read all docs (needed for AdminPanel to list users).
+      allow read: if request.auth != null && (
+        request.auth.uid == uid ||
+        (
+          exists(/databases/$(database)/documents/hero_users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/hero_users/$(request.auth.uid)).data.role == 'admin'
+        )
+      );
+
+      // Any authenticated user can create their own doc on first login.
+      // The client sets role='pending' (or 'admin' for admin emails) — this is
+      // enforced by client logic; the rule just restricts to own UID.
+      allow create: if request.auth != null && request.auth.uid == uid;
+
+      // A user can update their own doc, but NOT change their own role.
+      // An admin can update any doc (including role changes).
+      allow update: if request.auth != null && (
+        (
+          request.auth.uid == uid &&
+          !('role' in request.resource.data.diff(resource.data).affectedKeys())
+        ) ||
+        (
+          exists(/databases/$(database)/documents/hero_users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/hero_users/$(request.auth.uid)).data.role == 'admin'
+        )
+      );
+
+      // Documents are never deleted through the client.
+      allow delete: if false;
+    }
+
+    // All other collections are denied.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
