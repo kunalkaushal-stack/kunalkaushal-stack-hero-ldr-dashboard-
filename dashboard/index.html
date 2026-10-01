@@ -852,9 +852,12 @@ function joinHeroData(leadResult,retailResult){
     const callType=isBooked?(sorted[0].callType||'other'):'other';
     const retailDate=isBooked?(sorted[0].retailDate||null):null;
     const purchasedModel=isBooked?(sorted[0].purchasedModel||''):'';
+    const retailCount=isBooked?retail.length:0;
+    const retailDmsCount=isBooked?retail.filter(function(rr){return rr.callType==='dms';}).length:0;
+    const retailCoCount=isBooked?retail.filter(function(rr){return rr.callType==='co';}).length:0;
     return{opty_id:lr.opty_id,lt:lr.lt,source:lr.source,webId:lr.webId||'Unknown',model:lr.model,city:lr.city,state:lr.state,
       ao:lr.ao||'',region:lr.region||'',
-      lead_month:lr.lead_month,booking_month,isUnique:lr.isUnique,isBooked,callType,
+      lead_month:lr.lead_month,booking_month,isUnique:lr.isUnique,isBooked,callType,retailCount,retailDmsCount,retailCoCount,
       leadDate:lr.leadDate||null,retailDate,purchasedModel,
       encryptMobile:lr.encryptMobile||'',idVerifiedLead:lr.idVerifiedLead||'',brand:lr.brand||'',
       verifiedDealer:lr.verifiedDealer||'',dealerId:lr.dealerId||'',oemCrmId:lr.oemCrmId||'',
@@ -1014,9 +1017,9 @@ function buildPayload(joinedRows){
     const lti=ltMap[r.lt||'Unknown'];
     const ci=cityMap[r.city||'Unknown'];
     const wi=wiMap[r.webId||'Unknown'];
-    const L=1,R=isRetailed(r)?1:0;
-    const Rd=(R&&r.callType==='dms')?1:0;
-    const Rc=(R&&r.callType==='co')?1:0;
+    const L=1,R=isRetailed(r)?(r.retailCount||1):0;
+    const Rd=isRetailed(r)?(r.retailDmsCount||0):0;
+    const Rc=isRetailed(r)?(r.retailCoCount||0):0;
 
     // On Create (lead_month dimension)
     a4(monthlyA,li+'',L,R,Rd,Rc);
