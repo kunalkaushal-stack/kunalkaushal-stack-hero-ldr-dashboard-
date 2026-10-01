@@ -518,6 +518,9 @@ function normalizeHeroMonth(s){
   // Mon-YY format (e.g. "Aug-26" → "Aug'2026")
   const m5=s.match(/^([A-Za-z]{3})-(\d{2})$/);
   if(m5){const mi=MONTH_NAMES.findIndex(n=>n.toLowerCase()===m5[1].toLowerCase());if(mi>=0)return MONTH_NAMES[mi]+"'"+(2000+parseInt(m5[2]));}
+  // Mon'YY format (e.g. "Sep'26" → "Sep'2026") — used in "Retail Attribution Month" sheet column
+  const m6=s.match(/^([A-Za-z]{3})'(\d{2})$/);
+  if(m6){const mi=MONTH_NAMES.findIndex(n=>n.toLowerCase()===m6[1].toLowerCase());if(mi>=0)return MONTH_NAMES[mi]+"'"+(2000+parseInt(m6[2]));}
   return s;
 }
 
@@ -790,7 +793,7 @@ function parseHeroRetailRows(raw){
     if(!isHeroBrand){excludedBrand++;continue;}
     heroBrandCount++;
     const sourceLeadId=get(r,['sourcelead id','sourcelead_id','source lead id','source_lead_id','sourceleadid','lead id','leadid','optyid','opty id','opty_id']);
-    const performanceMonth=normalizeHeroMonth(get(r,['performance month','performancemonth','performance_month','retail month','retailmonth','month']));
+    const performanceMonth=normalizeHeroMonth(get(r,['retail attribution month','performance month','performancemonth','performance_month','retail month','retailmonth','month']));
     if(!sourceLeadId||!performanceMonth){excludedKey++;continue;}
     // Capture sample keys and dates from Hero-brand rows
     if(rawKeySamples.length<10)rawKeySamples.push(sourceLeadId);
