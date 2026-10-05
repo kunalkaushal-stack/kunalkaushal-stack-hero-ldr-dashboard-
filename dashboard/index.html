@@ -6560,6 +6560,7 @@ function PresenceStrip({presence,fbUser,role,onSignOut,onAdminOpen}){
 function AdminPanel({onClose}){
   var[users,setUsers]=useState([]);
   var[saving,setSaving]=useState(null);
+  var[deleting,setDeleting]=useState(null);
   var[panelErr,setPanelErr]=useState('');
   useEffect(function(){
     var unsub=getFbDb().collection(USERS_COL).orderBy('createdAt','asc').onSnapshot(
@@ -6568,6 +6569,10 @@ function AdminPanel({onClose}){
     );
     return unsub;
   },[]);
+  function effectiveRole(u){
+    if((u.role||'pending')==='pending'&&isGirnarsoftEmail(u.email))return'viewer';
+    return u.role||'pending';
+  }
   function changeRole(uid,newRole){
     setSaving(uid);
     var upd={role:newRole};
@@ -6582,13 +6587,24 @@ function AdminPanel({onClose}){
       .then(function(){setSaving(null);})
       .catch(function(e){setPanelErr(e.message);setSaving(null);});
   }
+  function deleteUser(uid,email){
+    if(!window.confirm('Remove '+email+' from the dashboard?\nThey can sign in again and will get default access.'))return;
+    setDeleting(uid);
+    getFbDb().collection(USERS_COL).doc(uid).delete()
+      .then(function(){setDeleting(null);})
+      .catch(function(e){setPanelErr(e.message);setDeleting(null);});
+  }
   var roleLabel={admin:'Admin',full:'Full',viewer:'Viewing',pending:'Pending',client:'Client'};
   var roleColor={admin:'#92400e',full:'#15803d',viewer:'#1d4ed8',pending:'#6b7280',client:'#0d9488'};
   var roleBg={admin:'#fef3c7',full:'#dcfce7',viewer:'#dbeafe',pending:'#f3f4f6',client:'#ccfbf1'};
+  var pendingUpgrade=users.filter(function(u){return u.upgradeRequested;});
   return ce('div',{className:'admin-panel-overlay',onClick:function(e){if(e.target===e.currentTarget)onClose();}},
     ce('div',{className:'admin-card'},
       ce('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}},
-        ce('span',{style:{fontSize:15,fontWeight:700,color:'#111827'}},'\ud83d\udc65 User Access Management'),
+        ce('span',{style:{fontSize:15,fontWeight:700,color:'#111827'}},
+          '\ud83d\udc65 User Access Management',
+          pendingUpgrade.length>0&&ce('span',{style:{marginLeft:8,padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:700,background:'#FEF3C7',color:'#92400E',border:'1px solid #FDE68A'}},pendingUpgrade.length+' upgrade req')
+        ),
         ce('button',{style:{background:'none',border:'none',fontSize:22,cursor:'pointer',color:'#9ca3af',lineHeight:1},onClick:onClose},'\u00d7')
       ),
       ce('p',{style:{fontSize:11,color:'#6b7280',margin:'0 0 14px',lineHeight:1.7}},
@@ -6600,37 +6616,46 @@ function AdminPanel({onClose}){
       ),
       panelErr&&ce('div',{style:{background:'#fef2f2',color:'#dc2626',padding:'8px 12px',borderRadius:8,fontSize:12,marginBottom:12}},panelErr),
       ce('div',{style:{overflowX:'auto'}},
-        ce('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth:480}},
+        ce('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth:580}},
           ce('thead',null,ce('tr',{style:{background:'#fff7ed'}},
-            ['Email','Name','Role','Change To'].map(function(h,i){
+            ['Email','Name','Current Access','Change To',''].map(function(h,i){
               return ce('th',{key:i,style:{padding:'8px 10px',textAlign:'left',fontWeight:700,color:'#7C2D12',fontSize:11,borderBottom:'2px solid #FDBA74'}},h);
             })
           )),
           ce('tbody',null,users.map(function(u){
-            return ce('tr',{key:u.id,style:{borderBottom:'1px solid #FFF7ED'}},
-              ce('td',{style:{padding:'7px 10px',color:'#6b7280',fontSize:11,maxWidth:220,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},u.email),
-              ce('td',{style:{padding:'7px 10px',color:'#374151',fontSize:11}},u.displayName||'\u2014'),
+            var er=effectiveRole(u);
+            var isMe=isAdminEmail(u.email);
+            var isBusy=saving===u.id||deleting===u.id;
+            return ce('tr',{key:u.id,style:{borderBottom:'1px solid #FFF7ED',background:u.upgradeRequested?'#FFFBEB':''}},
+              ce('td',{style:{padding:'7px 10px',color:'#6b7280',fontSize:11,maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},u.email),
+              ce('td',{style:{padding:'7px 10px',color:'#374151',fontSize:11,whiteSpace:'nowrap'}},u.displayName||'\u2014'),
               ce('td',{style:{padding:'7px 10px'}},
-                ce('span',{style:{padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:700,background:roleBg[u.role]||roleBg.pending,color:roleColor[u.role]||roleColor.pending}},roleLabel[u.role]||'Pending'),
-                u.upgradeRequested&&ce('span',{style:{display:'inline-flex',alignItems:'center',gap:4,marginLeft:6,padding:'2px 8px',borderRadius:20,fontSize:9,fontWeight:700,background:'#FEF3C7',color:'#92400E',border:'1px solid #FDE68A',verticalAlign:'middle'}},
-                  '↑ Upgrade Req',
+                ce('span',{style:{padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:700,background:roleBg[er]||roleBg.pending,color:roleColor[er]||roleColor.pending}},roleLabel[er]||'Pending'),
+                u.upgradeRequested&&ce('span',{style:{display:'inline-flex',alignItems:'center',gap:3,marginLeft:6,padding:'2px 8px',borderRadius:20,fontSize:9,fontWeight:700,background:'#FEF3C7',color:'#92400E',border:'1px solid #FDE68A',verticalAlign:'middle'}},
+                  '\u2191 Upgrade Req',
                   saving===u.id+'_d'
-                    ?ce('span',{style:{fontSize:9,color:'#9ca3af',marginLeft:2}},'...')
-                    :ce('button',{onClick:function(){dismissUpgradeRequest(u.id);},title:'Dismiss request',
-                        style:{marginLeft:2,padding:'0 3px',background:'none',border:'none',cursor:'pointer',fontSize:10,color:'#92400E',fontWeight:700,lineHeight:1}},'×')
+                    ?ce('span',{style:{fontSize:9,color:'#9ca3af'}},'...')
+                    :ce('button',{onClick:function(){dismissUpgradeRequest(u.id);},title:'Dismiss \u2014 user can re-request',
+                        style:{padding:'0 2px',background:'none',border:'none',cursor:'pointer',fontSize:11,color:'#92400E',fontWeight:700,lineHeight:1}},'\u00d7')
                 )
               ),
               ce('td',{style:{padding:'7px 10px'}},
-                isAdminEmail(u.email)
+                isMe
                   ?ce('span',{style:{fontSize:11,color:'#9ca3af'}},'\u2014')
-                  :saving===u.id
-                    ?ce('span',{style:{fontSize:11,color:'#9ca3af'}},'Saving\u2026')
-                    :ce('select',{value:u.role||'pending',onChange:function(e){changeRole(u.id,e.target.value);},
+                  :isBusy
+                    ?ce('span',{style:{fontSize:11,color:'#9ca3af'}},saving===u.id?'Saving\u2026':'Removing\u2026')
+                    :ce('select',{value:er,onChange:function(e){changeRole(u.id,e.target.value);},
                         style:{fontSize:11,padding:'3px 8px',borderRadius:6,border:'1px solid #d1d5db',cursor:'pointer',background:'#fff',fontFamily:'inherit'}},
-                      ['pending','viewer','full','admin','client'].map(function(r){
+                      ['viewer','full','admin','client','pending'].map(function(r){
                         return ce('option',{key:r,value:r},roleLabel[r]||r);
                       })
                     )
+              ),
+              ce('td',{style:{padding:'7px 6px'}},
+                !isMe&&!isBusy&&ce('button',{
+                  onClick:function(){deleteUser(u.id,u.email);},
+                  style:{padding:'3px 10px',borderRadius:6,border:'1px solid #FECACA',background:'#FEF2F2',color:'#DC2626',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}
+                },'Remove')
               )
             );
           }))
@@ -6639,7 +6664,6 @@ function AdminPanel({onClose}){
     )
   );
 }
-
 function AuthGate(){
   var[authState,setAuthState]=useState('loading');
   var[fbUser,setFbUser]=useState(null);
