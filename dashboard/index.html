@@ -6564,8 +6564,8 @@ function AdminPanel({onClose}){
   var[panelErr,setPanelErr]=useState('');
   useEffect(function(){
     var unsub=getFbDb().collection(USERS_COL).orderBy('createdAt','asc').onSnapshot(
-      function(snap){setUsers(snap.docs.map(function(d){return Object.assign({id:d.id},d.data());}));},
-      function(e){setPanelErr(e.message);}
+      function(snap){setPanelErr('');setUsers(snap.docs.map(function(d){return Object.assign({id:d.id},d.data());}));},
+      function(e){setPanelErr(e.message);setTimeout(function(){setPanelErr('');},6000);}
     );
     return unsub;
   },[]);
@@ -6761,7 +6761,10 @@ function AuthGate(){
     getFbDb().collection(USERS_COL).doc(u.uid).update({
       upgradeRequested:true,
       upgradeRequestedAt:firebase.firestore.FieldValue.serverTimestamp()
-    }).catch(function(e){console.error('[HERO AUTH] upgrade request failed:',e.message);});
+    }).catch(function(e){
+      console.error('[HERO AUTH] upgrade request failed:',e.message);
+      alert('Could not send request: '+e.message+'\nPlease contact kunal.kaushal@girnarsoft.com directly.');
+    });
   }
 
   if(authState==='loading')return ce('div',{style:{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',color:'#6b7280',fontSize:13,fontFamily:'DM Mono,monospace'}},'Authenticating\u2026');
