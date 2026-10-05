@@ -6396,7 +6396,7 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen,upgradeRequested,onRequ
     /* Viewer upgrade request banner */
     role==='viewer'&&ce('div',{style:{background:'#EFF6FF',borderBottom:'1px solid #BFDBFE',padding:'7px 24px',display:'flex',alignItems:'center',gap:10}},
       ce('span',{style:{fontSize:11,color:'#1D4ED8',flex:1}},
-        '🔒 You have ‘Viewer’ access — totals and charts only. Need lead-level details?'
+        '🔒 You have ‘Viewing’ access — totals and charts only. Need lead-level details?'
       ),
       upgradeRequested
         ?ce('span',{style:{fontSize:11,fontWeight:700,color:'#15803D',background:'#DCFCE7',padding:'3px 12px',borderRadius:20,border:'1px solid #BBF7D0'}},'✓ Request sent — awaiting admin approval')
@@ -6546,7 +6546,7 @@ function PresenceStrip({presence,fbUser,role,onSignOut,onAdminOpen}){
     ),
     Av(selfPres,true),
     (role==='admin'||role==='full')&&ce('span',{className:'viewer-badge',style:{background:'rgba(255,255,255,.15)',color:'#FED7AA',borderRadius:20,padding:'2px 8px',fontSize:9,fontWeight:700,letterSpacing:'.06em',textTransform:'uppercase',marginLeft:4}},role==='admin'?'Admin':'Full'),
-    role==='viewer'&&ce('span',{className:'viewer-badge',style:{marginLeft:4}},'Viewer'),
+    role==='viewer'&&ce('span',{className:'viewer-badge',style:{marginLeft:4}},'Viewing'),
     role==='client'&&ce('span',{className:'viewer-badge',style:{background:'#ccfbf1',color:'#0d9488',marginLeft:4}},'Client'),
     role==='admin'&&ce('button',{
       style:{marginLeft:6,padding:'4px 10px',borderRadius:6,border:'1px solid rgba(255,255,255,.3)',background:'rgba(255,255,255,.12)',fontSize:11,cursor:'pointer',color:'#fff',fontWeight:600,fontFamily:'inherit',whiteSpace:'nowrap'},
@@ -6576,6 +6576,13 @@ function AdminPanel({onClose}){
       .then(function(){setSaving(null);})
       .catch(function(e){setPanelErr(e.message);setSaving(null);});
   }
+  function dismissUpgradeRequest(uid){
+    setSaving(uid+'_d');
+    getFbDb().collection(USERS_COL).doc(uid).update({upgradeRequested:false})
+      .then(function(){setSaving(null);})
+      .catch(function(e){setPanelErr(e.message);setSaving(null);});
+  }
+  var roleLabel={admin:'Admin',full:'Full',viewer:'Viewing',pending:'Pending',client:'Client'};
   var roleColor={admin:'#92400e',full:'#15803d',viewer:'#1d4ed8',pending:'#6b7280',client:'#0d9488'};
   var roleBg={admin:'#fef3c7',full:'#dcfce7',viewer:'#dbeafe',pending:'#f3f4f6',client:'#ccfbf1'};
   return ce('div',{className:'admin-panel-overlay',onClick:function(e){if(e.target===e.currentTarget)onClose();}},
@@ -6585,11 +6592,11 @@ function AdminPanel({onClose}){
         ce('button',{style:{background:'none',border:'none',fontSize:22,cursor:'pointer',color:'#9ca3af',lineHeight:1},onClick:onClose},'\u00d7')
       ),
       ce('p',{style:{fontSize:11,color:'#6b7280',margin:'0 0 14px',lineHeight:1.7}},
-        ce('strong',null,'pending'),' \u2014 awaiting access  \u00b7  ',
-        ce('strong',null,'viewer'),' \u2014 totals only  \u00b7  ',
-        ce('strong',null,'full'),' \u2014 all columns  \u00b7  ',
-        ce('strong',null,'admin'),' \u2014 full + manage users  \u00b7  ',
-        ce('strong',null,'client'),' \u2014 client view (Model / Geo / Target only)'
+        ce('strong',null,'Pending'),' \u2014 awaiting access  \u00b7  ',
+        ce('strong',null,'Viewing'),' \u2014 totals only  \u00b7  ',
+        ce('strong',null,'Full'),' \u2014 all columns  \u00b7  ',
+        ce('strong',null,'Admin'),' \u2014 full + manage users  \u00b7  ',
+        ce('strong',null,'Client'),' \u2014 client view (Model / Geo / Target only)'
       ),
       panelErr&&ce('div',{style:{background:'#fef2f2',color:'#dc2626',padding:'8px 12px',borderRadius:8,fontSize:12,marginBottom:12}},panelErr),
       ce('div',{style:{overflowX:'auto'}},
@@ -6604,8 +6611,14 @@ function AdminPanel({onClose}){
               ce('td',{style:{padding:'7px 10px',color:'#6b7280',fontSize:11,maxWidth:220,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},u.email),
               ce('td',{style:{padding:'7px 10px',color:'#374151',fontSize:11}},u.displayName||'\u2014'),
               ce('td',{style:{padding:'7px 10px'}},
-                ce('span',{style:{padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:700,background:roleBg[u.role]||roleBg.pending,color:roleColor[u.role]||roleColor.pending}},u.role||'pending'),
-                u.upgradeRequested&&ce('span',{style:{marginLeft:6,padding:'2px 8px',borderRadius:20,fontSize:9,fontWeight:700,background:'#FEF3C7',color:'#92400E',border:'1px solid #FDE68A',verticalAlign:'middle'}},'↑ Upgrade Req')
+                ce('span',{style:{padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:700,background:roleBg[u.role]||roleBg.pending,color:roleColor[u.role]||roleColor.pending}},roleLabel[u.role]||'Pending'),
+                u.upgradeRequested&&ce('span',{style:{display:'inline-flex',alignItems:'center',gap:4,marginLeft:6,padding:'2px 8px',borderRadius:20,fontSize:9,fontWeight:700,background:'#FEF3C7',color:'#92400E',border:'1px solid #FDE68A',verticalAlign:'middle'}},
+                  '↑ Upgrade Req',
+                  saving===u.id+'_d'
+                    ?ce('span',{style:{fontSize:9,color:'#9ca3af',marginLeft:2}},'...')
+                    :ce('button',{onClick:function(){dismissUpgradeRequest(u.id);},title:'Dismiss request',
+                        style:{marginLeft:2,padding:'0 3px',background:'none',border:'none',cursor:'pointer',fontSize:10,color:'#92400E',fontWeight:700,lineHeight:1}},'×')
+                )
               ),
               ce('td',{style:{padding:'7px 10px'}},
                 isAdminEmail(u.email)
@@ -6615,7 +6628,7 @@ function AdminPanel({onClose}){
                     :ce('select',{value:u.role||'pending',onChange:function(e){changeRole(u.id,e.target.value);},
                         style:{fontSize:11,padding:'3px 8px',borderRadius:6,border:'1px solid #d1d5db',cursor:'pointer',background:'#fff',fontFamily:'inherit'}},
                       ['pending','viewer','full','admin','client'].map(function(r){
-                        return ce('option',{key:r,value:r},r.charAt(0).toUpperCase()+r.slice(1));
+                        return ce('option',{key:r,value:r},roleLabel[r]||r);
                       })
                     )
               )
