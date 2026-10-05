@@ -6683,6 +6683,8 @@ function AuthGate(){
           if(mounted){
             var d=snap.data()||{};
             var r=d.role||'pending';
+            // Client-side override: @girnarsoft.com users always get at least viewer
+            if(r==='pending'&&isGirnarsoftEmail(user.email))r='viewer';
             setRole(r);setUpgradeRequested(!!d.upgradeRequested);setAuthState(r==='pending'?'pending':'authed');
           }
         },
