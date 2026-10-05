@@ -5949,7 +5949,7 @@ const TABS = [
   { id:'pivot',           label:'Pivot Table' },
 ];
 
-function App({fbUser,role,presence,onSignOut,onAdminOpen}){
+function App({fbUser,role,presence,onSignOut,onAdminOpen,upgradeRequested,onRequestUpgrade}){
   const viewerMode=role==='viewer';
   const clientMode=role==='client';
   const [data,setData]=useState(null);
@@ -6393,6 +6393,18 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen}){
       '\u2713 Synced '+lastSynced.toLocaleString()+(diagnostics?' \u00b7 '+diagnostics.matched.toLocaleString('en-IN')+' bookings matched':'')
     ),
     diagnostics&&ce(HeroDiagnostics,{d:diagnostics}),
+    /* Viewer upgrade request banner */
+    role==='viewer'&&ce('div',{style:{background:'#EFF6FF',borderBottom:'1px solid #BFDBFE',padding:'7px 24px',display:'flex',alignItems:'center',gap:10}},
+      ce('span',{style:{fontSize:11,color:'#1D4ED8',flex:1}},
+        '🔒 You have ‘Viewer’ access — totals and charts only. Need lead-level details?'
+      ),
+      upgradeRequested
+        ?ce('span',{style:{fontSize:11,fontWeight:700,color:'#15803D',background:'#DCFCE7',padding:'3px 12px',borderRadius:20,border:'1px solid #BBF7D0'}},'✓ Request sent — awaiting admin approval')
+        :ce('button',{
+            onClick:onRequestUpgrade,
+            style:{fontSize:11,fontWeight:700,padding:'4px 14px',borderRadius:20,border:'1px solid #3B82F6',background:'#2563EB',color:'#fff',cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}
+          },'Request Full Access ↑')
+    ),
     /* Tab nav */
     ce('div',{style:{background:'#fff',borderBottom:'2px solid #FED7AA',position:'sticky',top:54,zIndex:99,boxShadow:'0 2px 8px rgba(124,45,18,.08)'}},
       ce('div',{style:{maxWidth:1700,margin:'0 auto',display:'flex',alignItems:'center',gap:0,padding:'0 16px',opacity:isPending?0.6:1,transition:'opacity .15s'}},
@@ -6444,17 +6456,22 @@ function getFbRTDB(){
 }
 
 function isAdminEmail(email){return ADMIN_EMAILS.includes((email||'').toLowerCase());}
+function isGirnarsoftEmail(email){return (email||'').toLowerCase().endsWith('@girnarsoft.com');}
 function ensureUserDoc(user){
   var ref=getFbDb().collection(USERS_COL).doc(user.uid);
   var isAdmin=isAdminEmail(user.email);
+  var isGirnarsoft=isGirnarsoftEmail(user.email);
   return ref.get().then(function(snap){
     if(!snap.exists){
+      var defaultRole=isAdmin?'admin':isGirnarsoft?'viewer':'pending';
       return ref.set({email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||'',
-        role:isAdmin?'admin':'pending',createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+        role:defaultRole,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
     }
     var updates={};
     if(snap.data().email!==user.email)Object.assign(updates,{email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||''});
     if(isAdmin&&snap.data().role!=='admin')updates.role='admin';
+    // Auto-upgrade existing pending girnarsoft users to viewer
+    if(isGirnarsoft&&snap.data().role==='pending')updates.role='viewer';
     if(Object.keys(updates).length)return ref.update(updates);
   });
 }
@@ -6553,7 +6570,9 @@ function AdminPanel({onClose}){
   },[]);
   function changeRole(uid,newRole){
     setSaving(uid);
-    getFbDb().collection(USERS_COL).doc(uid).update({role:newRole})
+    var upd={role:newRole};
+    if(newRole!=='pending')upd.upgradeRequested=false;
+    getFbDb().collection(USERS_COL).doc(uid).update(upd)
       .then(function(){setSaving(null);})
       .catch(function(e){setPanelErr(e.message);setSaving(null);});
   }
@@ -6585,7 +6604,8 @@ function AdminPanel({onClose}){
               ce('td',{style:{padding:'7px 10px',color:'#6b7280',fontSize:11,maxWidth:220,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},u.email),
               ce('td',{style:{padding:'7px 10px',color:'#374151',fontSize:11}},u.displayName||'\u2014'),
               ce('td',{style:{padding:'7px 10px'}},
-                ce('span',{style:{padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:700,background:roleBg[u.role]||roleBg.pending,color:roleColor[u.role]||roleColor.pending}},u.role||'pending')
+                ce('span',{style:{padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:700,background:roleBg[u.role]||roleBg.pending,color:roleColor[u.role]||roleColor.pending}},u.role||'pending'),
+                u.upgradeRequested&&ce('span',{style:{marginLeft:6,padding:'2px 8px',borderRadius:20,fontSize:9,fontWeight:700,background:'#FEF3C7',color:'#92400E',border:'1px solid #FDE68A',verticalAlign:'middle'}},'↑ Upgrade Req')
               ),
               ce('td',{style:{padding:'7px 10px'}},
                 isAdminEmail(u.email)
@@ -6611,6 +6631,7 @@ function AuthGate(){
   var[authState,setAuthState]=useState('loading');
   var[fbUser,setFbUser]=useState(null);
   var[role,setRole]=useState(null);
+  var[upgradeRequested,setUpgradeRequested]=useState(false);
   var[presence,setPresence]=useState({});
   var[authErr,setAuthErr]=useState('');
   var[authLoading,setAuthLoading]=useState(false);
@@ -6647,8 +6668,9 @@ function AuthGate(){
       var unsubRole=getFbDb().collection(USERS_COL).doc(user.uid).onSnapshot(
         function(snap){
           if(mounted){
-            var r=(snap.data()||{}).role||'pending';
-            setRole(r);setAuthState(r==='pending'?'pending':'authed');
+            var d=snap.data()||{};
+            var r=d.role||'pending';
+            setRole(r);setUpgradeRequested(!!d.upgradeRequested);setAuthState(r==='pending'?'pending':'authed');
           }
         },
         function(e){
@@ -6694,13 +6716,21 @@ function AuthGate(){
     cleanups.current.forEach(function(f){try{f();}catch(e){}});
     getFbAuth().signOut();
   }
+  function handleRequestUpgrade(){
+    var u=getFbAuth().currentUser;
+    if(!u)return;
+    getFbDb().collection(USERS_COL).doc(u.uid).update({
+      upgradeRequested:true,
+      upgradeRequestedAt:firebase.firestore.FieldValue.serverTimestamp()
+    }).catch(function(e){console.error('[HERO AUTH] upgrade request failed:',e.message);});
+  }
 
   if(authState==='loading')return ce('div',{style:{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',color:'#6b7280',fontSize:13,fontFamily:'DM Mono,monospace'}},'Authenticating\u2026');
   if(authState==='unauth')return ce(LoginPage,{onLogin:handleLogin,loading:authLoading,error:authErr});
   if(authState==='pending')return ce(PendingPage,{user:fbUser,onSignOut:handleSignOut});
   return ce(React.Fragment,null,
     showAdmin&&ce(AdminPanel,{onClose:function(){setShowAdmin(false);}}),
-    ce(App,{fbUser:fbUser,role:role,presence:presence,onSignOut:handleSignOut,onAdminOpen:function(){setShowAdmin(true);}})
+    ce(App,{fbUser:fbUser,role:role,presence:presence,onSignOut:handleSignOut,onAdminOpen:function(){setShowAdmin(true);},upgradeRequested:upgradeRequested,onRequestUpgrade:handleRequestUpgrade})
   );
 }
 
