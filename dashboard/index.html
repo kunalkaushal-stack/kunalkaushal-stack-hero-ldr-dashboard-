@@ -342,9 +342,20 @@ function sheetUrlToCsvUrl(url){
   const gid=gidM?gidM[1]:'0';
   return 'https://docs.google.com/spreadsheets/d/'+id+'/gviz/tq?tqx=out:csv&gid='+gid;
 }
+function sheetUrlToExportCsvUrl(url){
+  // Uses export format — bypasses saved filters on the sheet, always returns all rows
+  const u=(url||'').trim();
+  if(!u) throw new Error('Sheet URL is empty.');
+  const idM=u.match(/\/spreadsheets\/d\/([a-zA-Z0-9_\-]+)/);
+  if(!idM) throw new Error('Not a valid Google Sheets URL.');
+  const id=idM[1];
+  const gidM=u.match(/[#&?]gid=(\d+)/);
+  const gid=gidM?gidM[1]:'0';
+  return 'https://docs.google.com/spreadsheets/d/'+id+'/export?format=csv&gid='+gid;
+}
 
-async function fetchSheetCsv(url){
-  const csvUrl=sheetUrlToCsvUrl(url);
+async function fetchSheetCsv(url,useExport){
+  const csvUrl=useExport?sheetUrlToExportCsvUrl(url):sheetUrlToCsvUrl(url);
   let res;
   try{ res=await fetch(csvUrl,{cache:'no-store'}); }
   catch(e){ throw new Error('Network error ('+e.message+')'); }
@@ -5986,8 +5997,8 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen,upgradeRequested,onRequ
       if(!monthEntries.length)throw new Error('No Lead Master sheets configured in HERO_LEAD_MASTER_BY_MONTH.');
       const[monthCsvs,retailCSV,nsRetailCSV]=await Promise.all([
         Promise.all(monthEntries.map(([,url])=>fetchSheetCsv(url))),
-        fetchSheetCsv(HERO_SHEETS_CONFIG.RETAIL_URL),
-        fetchSheetCsv(HERO_SHEETS_CONFIG.NON_SCOPE_RETAIL_URL),
+        fetchSheetCsv(HERO_SHEETS_CONFIG.RETAIL_URL,true),
+        fetchSheetCsv(HERO_SHEETS_CONFIG.NON_SCOPE_RETAIL_URL,true),
       ]);
       const leadRaw=monthCsvs.flatMap(csv=>parseCsvToRows(csv));
       const retailRaw=parseCsvToRows(retailCSV);
