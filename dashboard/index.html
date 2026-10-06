@@ -793,7 +793,7 @@ function parseHeroRetailRows(raw){
     if(!isHeroBrand){excludedBrand++;continue;}
     heroBrandCount++;
     const sourceLeadId=get(r,['sourcelead id','sourcelead_id','source lead id','source_lead_id','sourceleadid','lead id','leadid','optyid','opty id','opty_id']);
-    const performanceMonth=normalizeHeroMonth(get(r,['retail attribution month','performance month','performancemonth','performance_month','retail month','retailmonth','month']));
+    const performanceMonth=normalizeHeroMonth(get(r,['performance month','performancemonth','performance_month','retail attribution month','retail month','retailmonth','month']));
     if(!sourceLeadId||!performanceMonth){excludedKey++;continue;}
     // Capture sample keys and dates from Hero-brand rows
     if(rawKeySamples.length<10)rawKeySamples.push(sourceLeadId);
