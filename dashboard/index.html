@@ -724,6 +724,7 @@ function parseHeroLeadRows(raw){
     const enquiryId=get(r,['enquiry_id','enquiryid','enquiry id','inquiry id','inquiry_id','enquiryid']);
     const utmCampaign=utmRawKey?String(r[utmRawKey]||'').trim():'';
     const statusName=get(r,['status_name','status name','statusname']);
+    const l1VerifiedDate=get(r,['l1_verified_date','l1verifieddate','l1 verified date','l1verified date']);
     if(leadDate){
       if(!earliestDate||leadDate<earliestDate)earliestDate=leadDate;
       if(!latestDate||leadDate>latestDate)latestDate=leadDate;
@@ -733,7 +734,7 @@ function parseHeroLeadRows(raw){
       model:canonicalModel(model)||'Unknown',city:city||'Unknown',state:canonicalState(state)||'Unknown',
       ao:ao||'',region:region||'',
       lead_month,leadDate:leadDate||null,isUnique,
-      encryptMobile,idVerifiedLead,brand,verifiedDealer,dealerId,oemCrmId,dealerName,enquiryId,utmCampaign,statusName
+      encryptMobile,idVerifiedLead,brand,verifiedDealer,dealerId,oemCrmId,dealerName,enquiryId,utmCampaign,statusName,l1VerifiedDate
     });
   }
   const uniqueIds=new Set(rows.map(r=>r.opty_id)).size;
@@ -875,7 +876,7 @@ function joinHeroData(leadResult,retailResult){
       leadDate:lr.leadDate||null,retailDate,purchasedModel,
       encryptMobile:lr.encryptMobile||'',idVerifiedLead:lr.idVerifiedLead||'',brand:lr.brand||'',
       verifiedDealer:lr.verifiedDealer||'',dealerId:lr.dealerId||'',oemCrmId:lr.oemCrmId||'',
-      dealerName:lr.dealerName||'',enquiryId:lr.enquiryId||'',utmCampaign:lr.utmCampaign||'',statusName:lr.statusName||''};
+      dealerName:lr.dealerName||'',enquiryId:lr.enquiryId||'',utmCampaign:lr.utmCampaign||'',statusName:lr.statusName||'',l1VerifiedDate:lr.l1VerifiedDate||''};
   });
   return{rows:joined,diagnostics:{
     leadTotalRows:leadDiag.totalRows,leadIncluded:leadDiag.included,leadUniqueIds:leadDiag.uniqueIds,leadDupIds:leadDiag.dupIds,
@@ -1457,7 +1458,8 @@ function exportDetailedCsv(rawJoined, filters, RT, leadsMode, filename, monthOve
   const hdr = ['encrypt_mobile_number','id_verified_lead','opty_id','Date','Lead_Month',
     'brand','model','verified_dealer','dealerId','oem_crm_id','City','State','AO','Zone',
     'Dealer_Name','enquiryId','utm_campaign','lead_type',...(viewerMode?[]:['Medium']),'Status_Name',
-    'purchasedModel','performanceMonth','Call Type','Retail_Attribution_Date'];
+    'purchasedModel','performanceMonth','Call Type','Retail_Attribution_Date',
+    'L1_Verified_Date','Lead Categorization'];
   const aoa = [hdr];
   for (const r of rawJoined) {
     if (monthOverride) {
@@ -1501,6 +1503,7 @@ function exportDetailedCsv(rawJoined, filters, RT, leadsMode, filename, monthOve
       isRA ? (r.booking_month||'') : '',
       isRA ? (r.callType||'') : '',
       isRA ? fmtD(r.retailDate) : '',
+      r.l1VerifiedDate||'', r.webId||'Unknown',
     ]);
   }
   exportCsv(aoa, filename);
@@ -1520,7 +1523,7 @@ function exportLeadCategDetailedCsv(rawJoined, filters, RT, leadsMode, filename,
     'brand','model','verified_dealer','dealerId','oem_crm_id','City','State','AO','Zone',
     'Dealer_Name','enquiryId','utm_campaign','lead_type',...(viewerMode?[]:['Medium']),'Status_Name',
     'purchasedModel','performanceMonth','Call Type','Retail_Attribution_Date',
-    'Lead Categorisation'];
+    'L1_Verified_Date','Lead Categorization','Lead Categorisation'];
   const aoa = [hdr];
   for (const r of rawJoined) {
     if (monthOverride) {
@@ -1546,7 +1549,7 @@ function exportLeadCategDetailedCsv(rawJoined, filters, RT, leadsMode, filename,
       isRA ? (r.booking_month||'') : '',
       isRA ? (r.callType||'') : '',
       isRA ? fmtD(r.retailDate) : '',
-      r.webId || 'Unknown',
+      r.l1VerifiedDate||'', r.webId||'Unknown', r.webId || 'Unknown',
     ]);
   }
   exportCsv(aoa, filename);
