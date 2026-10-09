@@ -1395,18 +1395,14 @@ function exportXlsx(sheetMap, filename) {
   window.XLSX.writeFile(wb, filename + '.xlsx');
 }
 
-function _viewerDownloadBlocked(){
-  alert('🔒 Download not available with Viewing access.\n\nUse the \'Request Full Access ↑\' button at the top of the page to request an upgrade from the admin.');
-}
 function ExportBtn({ onClick }) {
   return ce('button', {
-    onClick: window._heroViewerMode ? _viewerDownloadBlocked : onClick,
-    title: window._heroViewerMode ? 'Upgrade access to download' : 'Export to Excel',
+    onClick: onClick,
+    title: 'Export to Excel',
     style: { padding:'4px 14px', fontSize:10, fontFamily:'inherit', fontWeight:700,
       border:'1px solid #93C5FD', borderRadius:20, background:'#fff',
-      color: window._heroViewerMode ? '#9CA3AF' : '#001F5B',
-      cursor:'pointer', display:'inline-flex', alignItems:'center',
-      gap:4, whiteSpace:'nowrap', opacity: window._heroViewerMode ? 0.6 : 1 }
+      color:'#001F5B', cursor:'pointer', display:'inline-flex', alignItems:'center',
+      gap:4, whiteSpace:'nowrap' }
   }, '↓ Export Excel');
 }
 
@@ -1427,20 +1423,18 @@ function exportCsv(aoa, filename) {
 }
 
 function CsvBtn({onClick}) {
-  var vm=window._heroViewerMode;
   return ce('button', {
-    onClick: vm ? _viewerDownloadBlocked : onClick,
-    title: vm ? 'Upgrade access to download' : 'Export to CSV',
-    style:{padding:'5px 10px',fontSize:10,fontWeight:700,border:'1px solid #D1FAE5',borderRadius:6,background:'#ECFDF5',color:vm?'#9CA3AF':'#065F46',cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit',marginLeft:6,opacity:vm?0.6:1}
+    onClick: onClick,
+    title: 'Export to CSV',
+    style:{padding:'5px 10px',fontSize:10,fontWeight:700,border:'1px solid #D1FAE5',borderRadius:6,background:'#ECFDF5',color:'#065F46',cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit',marginLeft:6}
   }, '\u2193 CSV');
 }
 
 function DetailedCsvBtn({onClick}) {
-  var vm=window._heroViewerMode;
   return ce('button', {
-    onClick: vm ? _viewerDownloadBlocked : onClick,
-    title: vm ? 'Upgrade access to download' : 'Export detailed CSV \u2014 one row per lead',
-    style:{padding:'5px 10px',fontSize:10,fontWeight:700,border:'1px solid #BFDBFE',borderRadius:6,background:'#EFF6FF',color:vm?'#9CA3AF':'#1E40AF',cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit',marginLeft:6,opacity:vm?0.6:1}
+    onClick: onClick,
+    title: 'Export detailed CSV \u2014 one row per lead',
+    style:{padding:'5px 10px',fontSize:10,fontWeight:700,border:'1px solid #BFDBFE',borderRadius:6,background:'#EFF6FF',color:'#1E40AF',cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit',marginLeft:6}
   }, '\u2193 Detailed CSV');
 }
 
