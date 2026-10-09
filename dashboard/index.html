@@ -2370,6 +2370,7 @@ const OverviewTab = React.memo(function OverviewTab({ data, filters, RT }) {
    SOURCE ANALYSIS TAB
    ════════════════════════════════════════════════════════════════════ */
 const ENQUIRY_CAT = new Set(['Direct Push', 'L1 Nurtured']);
+const BP_STATUS = new Set(['booked','booking requested (callback scheduled)','booking request','pending retail']);
 const SourceTab = React.memo(function SourceTab({ data, rawData, filters, months, RT, onDetailedCsv, nsRetailRows, rawJoined }) {
   const { addScrollRef, onTableScroll } = useSyncedScroll();
   const { maps, sm, univ: univRaw, csm: csmRaw } = data;
@@ -2513,6 +2514,19 @@ const SourceTab = React.memo(function SourceTab({ data, rawData, filters, months
       gEnq++;
       enqBySrc.set(r.source, (enqBySrc.get(r.source)||0)+1);
     }
+    // Pass 5: Booking Pipeline — leads with Status_Name in booking funnel
+    const bpBySrc = new Map();
+    let gBP = 0;
+    for (const r of rawJ) {
+      if (r.lead_month !== M) continue;
+      if (!BP_STATUS.has((r.statusName||'').toLowerCase().trim())) continue;
+      if (!allS4  && (filters.sources === FILTER_CLEARED || !filters.sources.has(r.source))) continue;
+      if (!allSt4 && (filters.states  === FILTER_CLEARED || !filters.states.has(r.state)))  continue;
+      if (!allCt4 && (filters.cities  === FILTER_CLEARED || !filters.cities.has(r.city)))   continue;
+      if (!allMd4 && (filters.models  === FILTER_CLEARED || !filters.models.has(r.model)))  continue;
+      gBP++;
+      bpBySrc.set(r.source, (bpBySrc.get(r.source)||0)+1);
+    }
     if (gL === 0 && gR === 0 && gNR === 0) return null;
     const sorted = [...bySrc.entries()].sort((a,b) => b[1][0]-a[1][0]);
     const grand = fin(gL, gR);
@@ -2522,9 +2536,9 @@ const SourceTab = React.memo(function SourceTab({ data, rawData, filters, months
         ce('div', { className:'section-title', style:{marginBottom:0} }, M),
         ce('div',{style:{display:'flex',gap:0}},
           ce(CsvBtn, { onClick:()=>{
-            const aoa=[['Source','Leads','Enquiries','Retail','L.Contrib%','L2R%','Non-Scope R']];
-            csvSorted.forEach(([src,[l,r]])=>{const tot=fin(l,r);aoa.push([src,tot.l,enqBySrc.get(src)||0,tot.r,gL>0?+(tot.l/gL*100).toFixed(1):0,+tot.l2r.toFixed(1),nrBySrc.get(src)||0]);});
-            aoa.push(['Grand Total',gL,gEnq,gR,100,gL>0?+(gR/gL*100).toFixed(1):0,gNR]);
+            const aoa=[['Source','Leads','Enquiries','Retail','L.Contrib%','L2R%','Non-Scope R','Booking Pipeline']];
+            csvSorted.forEach(([src,[l,r]])=>{const tot=fin(l,r);aoa.push([src,tot.l,enqBySrc.get(src)||0,tot.r,gL>0?+(tot.l/gL*100).toFixed(1):0,+tot.l2r.toFixed(1),nrBySrc.get(src)||0,bpBySrc.get(src)||0]);});
+            aoa.push(['Grand Total',gL,gEnq,gR,100,gL>0?+(gR/gL*100).toFixed(1):0,gNR,gBP]);
             exportCsv(aoa,'Hero_Source_'+M.replace(/[^a-z0-9]/gi,'_')+'.csv');
           }}),
           onDetailedCsv && ce(DetailedCsvBtn, { onClick:()=>onDetailedCsv('Source', M) })
@@ -2542,6 +2556,7 @@ const SourceTab = React.memo(function SourceTab({ data, rawData, filters, months
               ce('th',null,'R.Contrib%'),
               ce('th',null,'L2R%'),
               ce('th',{style:{color:'#fff'}},'Non-Scope R'),
+              ce('th',{style:{color:'#fff'}},'Booking Pipeline'),
             )
           ),
           ce('tbody', null,
@@ -2556,6 +2571,7 @@ const SourceTab = React.memo(function SourceTab({ data, rawData, filters, months
                 ce('td',null,gR>0?Pf(tot.r/gR*100):'—'),
                 ce('td',{style:{color:'#D97706',fontWeight:700}},tot.l2r>0?Pf(tot.l2r):'—'),
                 ce('td',{style:{color:'#7C3AED',fontWeight:700}},Nf(nrBySrc.get(src)||0)),
+                ce('td',{style:{color:'#0369A1',fontWeight:700}},Nf(bpBySrc.get(src)||0)),
               );
             }),
             ce('tr',{key:'gtotal',className:'total-row'},
@@ -2567,6 +2583,7 @@ const SourceTab = React.memo(function SourceTab({ data, rawData, filters, months
               ce('td',null,'100.0%'),
               ce('td',{style:{color:'#D97706',fontWeight:700}},grand.l2r>0?Pf(grand.l2r):'—'),
               ce('td',{style:{color:'#7C3AED',fontWeight:700}},Nf(gNR)),
+              ce('td',{style:{color:'#0369A1',fontWeight:700}},Nf(gBP)),
             )
           )
         )
@@ -2698,7 +2715,24 @@ const SourceTab = React.memo(function SourceTab({ data, rawData, filters, months
       enqBySrc2.set(r.source, (enqBySrc2.get(r.source)||0)+1);
     }
     const sorted = [...bySrc.entries()].sort((a,b)=>b[1][0]-a[1][0]);
-    return { l:gL, r:gR, l2r:gL>0?gR/gL*100:0, sorted, nrBySrc:nrBySrc2, gNR:gNR2, enqBySrc:enqBySrc2, gEnq:gEnq2 };
+    // BP cross-month
+    const bpBySrc2 = new Map();
+    let gBP2 = 0;
+    const allS5b = !filters.sources || filters.sources.size === 0;
+    const allSt5b = !filters.states  || filters.states.size  === 0;
+    const allCt5b = !filters.cities  || filters.cities.size  === 0;
+    const allMd5b = !filters.models  || filters.models.size  === 0;
+    for (const r of (rawJoined||[])) {
+      if (!mSet.has(r.lead_month)) continue;
+      if (!BP_STATUS.has((r.statusName||'').toLowerCase().trim())) continue;
+      if (!allS5b  && (filters.sources === FILTER_CLEARED || !filters.sources.has(r.source))) continue;
+      if (!allSt5b && (filters.states  === FILTER_CLEARED || !filters.states.has(r.state)))  continue;
+      if (!allCt5b && (filters.cities  === FILTER_CLEARED || !filters.cities.has(r.city)))   continue;
+      if (!allMd5b && (filters.models  === FILTER_CLEARED || !filters.models.has(r.model)))  continue;
+      gBP2++;
+      bpBySrc2.set(r.source, (bpBySrc2.get(r.source)||0)+1);
+    }
+    return { l:gL, r:gR, l2r:gL>0?gR/gL*100:0, sorted, nrBySrc:nrBySrc2, gNR:gNR2, enqBySrc:enqBySrc2, gEnq:gEnq2, bpBySrc:bpBySrc2, gBP:gBP2 };
   }, [sm, csm, univ, pmsm, pm_csm, smLead, univLead, csmLead, maps, filters, getLR, hasCityF, months, nsRetailRows, rawJoined]);
 
   return ce('div', {className:'fade-up'},
@@ -2707,9 +2741,9 @@ const SourceTab = React.memo(function SourceTab({ data, rawData, filters, months
         ce('div', { className:'section-title', style:{marginBottom:0} }, '∑ All Months — Source Summary'),
         ce('div',{style:{display:'flex',gap:0}},
           ce(CsvBtn, { onClick:()=>{
-            const aoa=[['Source','Leads','Enquiries','Retail','L.Contrib%','L2R%','Non-Scope R']];
-            crossMonthTotals.sorted.forEach(([src,[l,r]])=>{const tot=fin(l,r);aoa.push([src,tot.l,crossMonthTotals.enqBySrc.get(src)||0,tot.r,crossMonthTotals.l>0?+(tot.l/crossMonthTotals.l*100).toFixed(1):0,+tot.l2r.toFixed(1),crossMonthTotals.nrBySrc.get(src)||0]);});
-            aoa.push(['Grand Total',crossMonthTotals.l,crossMonthTotals.gEnq,crossMonthTotals.r,100,+crossMonthTotals.l2r.toFixed(1),crossMonthTotals.gNR]);
+            const aoa=[['Source','Leads','Enquiries','Retail','L.Contrib%','L2R%','Non-Scope R','Booking Pipeline']];
+            crossMonthTotals.sorted.forEach(([src,[l,r]])=>{const tot=fin(l,r);aoa.push([src,tot.l,crossMonthTotals.enqBySrc.get(src)||0,tot.r,crossMonthTotals.l>0?+(tot.l/crossMonthTotals.l*100).toFixed(1):0,+tot.l2r.toFixed(1),crossMonthTotals.nrBySrc.get(src)||0,crossMonthTotals.bpBySrc.get(src)||0]);});
+            aoa.push(['Grand Total',crossMonthTotals.l,crossMonthTotals.gEnq,crossMonthTotals.r,100,+crossMonthTotals.l2r.toFixed(1),crossMonthTotals.gNR,crossMonthTotals.gBP]);
             exportCsv(aoa,'Hero_Source_AllMonths.csv');
           }}),
           onDetailedCsv && ce(DetailedCsvBtn, { onClick:()=>onDetailedCsv('Source', null) })
@@ -2723,6 +2757,7 @@ const SourceTab = React.memo(function SourceTab({ data, rawData, filters, months
             ce('th',null,'Retail'), ce('th',null,'R.Contrib%'),
             ce('th',null,'L2R%'),
             ce('th',{style:{color:'#fff'}},'Non-Scope R'),
+            ce('th',{style:{color:'#fff'}},'Booking Pipeline'),
           )),
           ce('tbody', null,
             ...crossMonthTotals.sorted.map(([src,[l,r]]) => {
@@ -2736,6 +2771,7 @@ const SourceTab = React.memo(function SourceTab({ data, rawData, filters, months
                 ce('td',null,crossMonthTotals.r>0?Pf(tot.r/crossMonthTotals.r*100):'—'),
                 ce('td',{style:{color:'#D97706',fontWeight:700}},tot.l2r>0?Pf(tot.l2r):'—'),
                 ce('td',{style:{color:'#7C3AED',fontWeight:700}},Nf(crossMonthTotals.nrBySrc.get(src)||0)),
+                ce('td',{style:{color:'#0369A1',fontWeight:700}},Nf(crossMonthTotals.bpBySrc.get(src)||0)),
               );
             }),
             ce('tr',{key:'gtotal',className:'total-row'},
@@ -2747,6 +2783,7 @@ const SourceTab = React.memo(function SourceTab({ data, rawData, filters, months
               ce('td',null,'100.0%'),
               ce('td',{style:{color:'#D97706',fontWeight:700}},crossMonthTotals.l2r>0?Pf(crossMonthTotals.l2r):'—'),
               ce('td',{style:{color:'#7C3AED',fontWeight:700}},Nf(crossMonthTotals.gNR)),
+              ce('td',{style:{color:'#0369A1',fontWeight:700}},Nf(crossMonthTotals.gBP)),
             )
           )
         )
@@ -2816,6 +2853,21 @@ const WebIdTab = React.memo(function WebIdTab({ data, filters, months, RT, onDet
       gNRW++;
       nrByWid.set(r.leadCat, (nrByWid.get(r.leadCat)||0)+1);
     }
+    // BP pass: Booking Pipeline grouped by webId
+    const bpByWid = new Map();
+    let gBPW = 0;
+    for (const row of (rawJoined||[])) {
+      const effMonth = (leadsMode==='update'&&row.isBooked&&row.booking_month)?row.booking_month:row.lead_month;
+      if (effMonth !== M) continue;
+      if (!BP_STATUS.has((row.statusName||'').toLowerCase().trim())) continue;
+      if (!allS    && (sf  ===FILTER_CLEARED||!sf.has(row.source)))  continue;
+      if (!allLT   && (ltf ===FILTER_CLEARED||!ltf.has(row.lt)))     continue;
+      if (!allMdl  && (mdf ===FILTER_CLEARED||!mdf.has(row.model)))  continue;
+      if (!allSt   && (stf ===FILTER_CLEARED||!stf.has(row.state)))  continue;
+      if (!allCity && (cf  ===FILTER_CLEARED||!cf.has(row.city)))    continue;
+      gBPW++;
+      bpByWid.set(row.webId||'Unknown', (bpByWid.get(row.webId||'Unknown')||0)+1);
+    }
     console.log('[WebIdTab renderMonth]', M, {gL, gR, byWidSize:byWid.size, allS, sfVal:(sf?[...sf]:[])});
     if (gL === 0 && gR === 0 && gNRW === 0) return null;
     const sorted = [...byWid.entries()].sort((a,b) => b[1][0]-a[1][0]);
@@ -2825,9 +2877,9 @@ const WebIdTab = React.memo(function WebIdTab({ data, filters, months, RT, onDet
         ce('div', { className:'section-title', style:{marginBottom:0} }, M),
         ce('div',{style:{display:'flex',gap:0}},
           ce(CsvBtn, { onClick:()=>{
-            const aoa=[['Web ID','Leads','Retail','L.Contrib%','L2R%','Non-Scope R']];
-            sorted.forEach(([wid,[l,r]])=>{const tot=fin(l,r);aoa.push([wid,tot.l,tot.r,gL>0?+(tot.l/gL*100).toFixed(1):0,+tot.l2r.toFixed(1),nrByWid.get(wid)||0]);});
-            aoa.push(['Grand Total',gL,gR,100,gL>0?+(gR/gL*100).toFixed(1):0,gNRW]);
+            const aoa=[['Web ID','Leads','Retail','L.Contrib%','L2R%','Non-Scope R','Booking Pipeline']];
+            sorted.forEach(([wid,[l,r]])=>{const tot=fin(l,r);aoa.push([wid,tot.l,tot.r,gL>0?+(tot.l/gL*100).toFixed(1):0,+tot.l2r.toFixed(1),nrByWid.get(wid)||0,bpByWid.get(wid)||0]);});
+            aoa.push(['Grand Total',gL,gR,100,gL>0?+(gR/gL*100).toFixed(1):0,gNRW,gBPW]);
             exportCsv(aoa,'Hero_WebID_'+M.replace(/[^a-z0-9]/gi,'_')+'.csv');
           }}),
           rawJoined && ce(DetailedCsvBtn, { onClick:()=>exportLeadCategDetailedCsv(rawJoined,filters,RT,leadsMode,'Hero_LeadCateg_Detailed_'+M.replace(/[^a-z0-9]/gi,'_')+'.csv',M,viewerMode) })
@@ -2844,6 +2896,7 @@ const WebIdTab = React.memo(function WebIdTab({ data, filters, months, RT, onDet
               ce('th',null,'R.Contrib%'),
               ce('th',null,'L2R%'),
               ce('th',{style:{color:'#fff'}},'Non-Scope R'),
+              ce('th',{style:{color:'#fff'}},'Booking Pipeline'),
             )
           ),
           ce('tbody', null,
@@ -2857,6 +2910,7 @@ const WebIdTab = React.memo(function WebIdTab({ data, filters, months, RT, onDet
                 ce('td',null,gR>0?Pf(tot.r/gR*100):'—'),
                 ce('td',{style:{color:'#D97706',fontWeight:700}},tot.l2r>0?Pf(tot.l2r):'—'),
                 ce('td',{style:{color:'#7C3AED',fontWeight:700}},Nf(nrByWid.get(wid)||0)),
+                ce('td',{style:{color:'#0369A1',fontWeight:700}},Nf(bpByWid.get(wid)||0)),
               );
             }),
             ce('tr',{key:'gtotal',className:'total-row'},
@@ -2867,6 +2921,7 @@ const WebIdTab = React.memo(function WebIdTab({ data, filters, months, RT, onDet
               ce('td',null,'100.0%'),
               ce('td',{style:{color:'#D97706',fontWeight:700}},grand.l2r>0?Pf(grand.l2r):'—'),
               ce('td',{style:{color:'#7C3AED',fontWeight:700}},Nf(gNRW)),
+              ce('td',{style:{color:'#0369A1',fontWeight:700}},Nf(gBPW)),
             )
           )
         )
@@ -2917,8 +2972,23 @@ const WebIdTab = React.memo(function WebIdTab({ data, filters, months, RT, onDet
       nrByWid2.set(r.leadCat, (nrByWid2.get(r.leadCat)||0)+1);
     }
     const sorted = [...byWid.entries()].sort((a,b)=>b[1][0]-a[1][0]);
+    // BP cross-month pass
+    const bpByWid2 = new Map();
+    let gBPW2 = 0;
+    for (const row of (rawJoined||[])) {
+      const effMonth = (leadsMode==='update'&&row.isBooked&&row.booking_month)?row.booking_month:row.lead_month;
+      if (!mSet.has(effMonth)) continue;
+      if (!BP_STATUS.has((row.statusName||'').toLowerCase().trim())) continue;
+      if (!allS    && (sf  ===FILTER_CLEARED||!sf.has(row.source)))  continue;
+      if (!allLT   && (ltf ===FILTER_CLEARED||!ltf.has(row.lt)))     continue;
+      if (!allMdl  && (mdf ===FILTER_CLEARED||!mdf.has(row.model)))  continue;
+      if (!allSt   && (stf ===FILTER_CLEARED||!stf.has(row.state)))  continue;
+      if (!allCity && (cf  ===FILTER_CLEARED||!cf.has(row.city)))    continue;
+      gBPW2++;
+      bpByWid2.set(row.webId||'Unknown', (bpByWid2.get(row.webId||'Unknown')||0)+1);
+    }
     console.log('[WebIdTab crossMonthTotals] RESULT — gL:',gL,'gR:',gR,'allS:',allS);
-    return { l:gL, r:gR, l2r:gL>0?gR/gL*100:0, sorted, nrByWid:nrByWid2, gNRW:gNRW2 };
+    return { l:gL, r:gR, l2r:gL>0?gR/gL*100:0, sorted, nrByWid:nrByWid2, gNRW:gNRW2, bpByWid:bpByWid2, gBPW:gBPW2 };
   }, [rawJoined, filters, leadsMode, RT, months, nsRetailRows]);
 
   return ce('div', {className:'fade-up'},
@@ -2927,9 +2997,9 @@ const WebIdTab = React.memo(function WebIdTab({ data, filters, months, RT, onDet
         ce('div', { className:'section-title', style:{marginBottom:0} }, '∑ All Months — Web ID Summary'),
         ce('div',{style:{display:'flex',gap:0}},
           ce(CsvBtn, { onClick:()=>{
-            const aoa=[['Web ID','Leads','Retail','L.Contrib%','L2R%','Non-Scope R']];
-            crossMonthTotals.sorted.forEach(([wid,[l,r]])=>{const tot=fin(l,r);aoa.push([wid,tot.l,tot.r,crossMonthTotals.l>0?+(tot.l/crossMonthTotals.l*100).toFixed(1):0,+tot.l2r.toFixed(1),crossMonthTotals.nrByWid.get(wid)||0]);});
-            aoa.push(['Grand Total',crossMonthTotals.l,crossMonthTotals.r,100,+crossMonthTotals.l2r.toFixed(1),crossMonthTotals.gNRW]);
+            const aoa=[['Web ID','Leads','Retail','L.Contrib%','L2R%','Non-Scope R','Booking Pipeline']];
+            crossMonthTotals.sorted.forEach(([wid,[l,r]])=>{const tot=fin(l,r);aoa.push([wid,tot.l,tot.r,crossMonthTotals.l>0?+(tot.l/crossMonthTotals.l*100).toFixed(1):0,+tot.l2r.toFixed(1),crossMonthTotals.nrByWid.get(wid)||0,crossMonthTotals.bpByWid.get(wid)||0]);});
+            aoa.push(['Grand Total',crossMonthTotals.l,crossMonthTotals.r,100,+crossMonthTotals.l2r.toFixed(1),crossMonthTotals.gNRW,crossMonthTotals.gBPW]);
             exportCsv(aoa,'Hero_WebID_AllMonths.csv');
           }}),
           rawJoined && ce(DetailedCsvBtn, { onClick:()=>exportLeadCategDetailedCsv(rawJoined,filters,RT,leadsMode,'Hero_LeadCateg_Detailed_AllMonths.csv',null,viewerMode) })
@@ -2943,6 +3013,7 @@ const WebIdTab = React.memo(function WebIdTab({ data, filters, months, RT, onDet
             ce('th',null,'Retail'), ce('th',null,'R.Contrib%'),
             ce('th',null,'L2R%'),
             ce('th',{style:{color:'#fff'}},'Non-Scope R'),
+            ce('th',{style:{color:'#fff'}},'Booking Pipeline'),
           )),
           ce('tbody', null,
             ...crossMonthTotals.sorted.map(([wid,[l,r]]) => {
@@ -2955,6 +3026,7 @@ const WebIdTab = React.memo(function WebIdTab({ data, filters, months, RT, onDet
                 ce('td',null,crossMonthTotals.r>0?Pf(tot.r/crossMonthTotals.r*100):'—'),
                 ce('td',{style:{color:'#D97706',fontWeight:700}},tot.l2r>0?Pf(tot.l2r):'—'),
                 ce('td',{style:{color:'#7C3AED',fontWeight:700}},Nf(crossMonthTotals.nrByWid.get(wid)||0)),
+                ce('td',{style:{color:'#0369A1',fontWeight:700}},Nf(crossMonthTotals.bpByWid.get(wid)||0)),
               );
             }),
             ce('tr',{key:'gtotal',className:'total-row'},
@@ -2965,6 +3037,7 @@ const WebIdTab = React.memo(function WebIdTab({ data, filters, months, RT, onDet
               ce('td',null,'100.0%'),
               ce('td',{style:{color:'#D97706',fontWeight:700}},crossMonthTotals.l2r>0?Pf(crossMonthTotals.l2r):'—'),
               ce('td',{style:{color:'#7C3AED',fontWeight:700}},Nf(crossMonthTotals.gNRW)),
+              ce('td',{style:{color:'#0369A1',fontWeight:700}},Nf(crossMonthTotals.gBPW)),
             )
           )
         )
