@@ -2370,7 +2370,7 @@ const OverviewTab = React.memo(function OverviewTab({ data, filters, RT }) {
    SOURCE ANALYSIS TAB
    ════════════════════════════════════════════════════════════════════ */
 const ENQUIRY_CAT = new Set(['Direct Push', 'L1 Nurtured']);
-const BP_STATUS = new Set(['booked','booking requested (callback scheduled)','booking request','pending retail']);
+const BP_STATUS = new Set(['booked','booked (callback scheduled)','booking request','booking requested (callback scheduled)','booking requested (dealer visit scheduled)','booking requested (no dealer connect)','pending retail']);
 const SourceTab = React.memo(function SourceTab({ data, rawData, filters, months, RT, onDetailedCsv, nsRetailRows, rawJoined }) {
   const { addScrollRef, onTableScroll } = useSyncedScroll();
   const { maps, sm, univ: univRaw, csm: csmRaw } = data;
