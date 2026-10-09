@@ -1455,7 +1455,7 @@ function exportDetailedCsv(rawJoined, filters, RT, leadsMode, filename, monthOve
   const allCity= !cf  || cf.size  === 0;
   const fmtD   = d => (d instanceof Date && !isNaN(d.getTime())) ? formatRetailDate(d) : '';
   const hdr = ['encrypt_mobile_number','id_verified_lead','opty_id','Date','Lead_Month',
-    'brand','model','verified_dealer','dealerId','oem_crm_id','City','State',
+    'brand','model','verified_dealer','dealerId','oem_crm_id','City','State','AO','Zone',
     'Dealer_Name','enquiryId','utm_campaign','lead_type',...(viewerMode?[]:['Medium']),'Status_Name',
     'purchasedModel','performanceMonth','Call Type','Retail_Attribution_Date'];
   const aoa = [hdr];
@@ -1494,7 +1494,7 @@ function exportDetailedCsv(rawJoined, filters, RT, leadsMode, filename, monthOve
       r.encryptMobile||'', r.idVerifiedLead||'', r.opty_id,
       fmtD(r.leadDate), r.lead_month, r.brand||'', r.model,
       r.verifiedDealer||'', r.dealerId||'', r.oemCrmId||'',
-      r.city, r.state, r.dealerName||'', r.enquiryId||'', r.utmCampaign||'',
+      r.city, r.state, r.ao||'', r.region||'', r.dealerName||'', r.enquiryId||'', r.utmCampaign||'',
       r.lt, ...(viewerMode?[]:[r.source]),
       statusName,
       isRA ? (r.purchasedModel||'') : '',
@@ -1517,7 +1517,7 @@ function exportLeadCategDetailedCsv(rawJoined, filters, RT, leadsMode, filename,
   const allCity= !cf  || cf.size  === 0;
   const fmtD   = d => (d instanceof Date && !isNaN(d.getTime())) ? formatRetailDate(d) : '';
   const hdr = ['encrypt_mobile_number','id_verified_lead','opty_id','Date','Lead_Month',
-    'brand','model','verified_dealer','dealerId','oem_crm_id','City','State',
+    'brand','model','verified_dealer','dealerId','oem_crm_id','City','State','AO','Zone',
     'Dealer_Name','enquiryId','utm_campaign','lead_type',...(viewerMode?[]:['Medium']),'Status_Name',
     'purchasedModel','performanceMonth','Call Type','Retail_Attribution_Date',
     'Lead Categorisation'];
@@ -1540,7 +1540,7 @@ function exportLeadCategDetailedCsv(rawJoined, filters, RT, leadsMode, filename,
       r.encryptMobile||'', r.idVerifiedLead||'', r.opty_id,
       fmtD(r.leadDate), r.lead_month, r.brand||'', r.model,
       r.verifiedDealer||'', r.dealerId||'', r.oemCrmId||'',
-      r.city, r.state, r.dealerName||'', r.enquiryId||'', r.utmCampaign||'',
+      r.city, r.state, r.ao||'', r.region||'', r.dealerName||'', r.enquiryId||'', r.utmCampaign||'',
       r.lt, ...(viewerMode?[]:[r.source]), statusName,
       isRA ? (r.purchasedModel||'') : '',
       isRA ? (r.booking_month||'') : '',
