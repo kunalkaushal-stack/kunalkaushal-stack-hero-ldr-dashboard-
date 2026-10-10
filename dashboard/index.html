@@ -6066,7 +6066,7 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen,upgradeRequested,onRequ
       const monthEntries=Object.entries(HERO_LEAD_MASTER_BY_MONTH);
       if(!monthEntries.length)throw new Error('No Lead Master sheets configured in HERO_LEAD_MASTER_BY_MONTH.');
       const[monthCsvs,retailCSV,nsRetailCSV]=await Promise.all([
-        Promise.all(monthEntries.map(([,url])=>fetchSheetCsv(url))),
+        Promise.all(monthEntries.map(([,url])=>fetchSheetCsv(url,true))),
         fetchSheetCsv(HERO_SHEETS_CONFIG.RETAIL_URL,true),
         fetchSheetCsv(HERO_SHEETS_CONFIG.NON_SCOPE_RETAIL_URL,true),
       ]);
