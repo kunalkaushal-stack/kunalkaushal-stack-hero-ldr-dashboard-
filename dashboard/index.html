@@ -1060,26 +1060,26 @@ function buildPayload(joinedRows){
       a4(u_univA,mi+'|'+si+'|'+sti+'|'+lti+'|'+li,L,R,Rd,Rc);
     }
 
-    // On Update (booking_month for booked leads, lead_month for unbooked)
+    // On Update: leads always fixed to creation month (li); retail by booking month (bmi)
     const bmi=(r.isBooked&&r.booking_month)?lmMap[r.booking_month]:li;
-    a4(bm_mA,bmi+'',L,R,Rd,Rc);
-    a4(bm_smA,si+'|'+bmi,L,R,Rd,Rc);
-    a4(bm_mmA,mi+'|'+si+'|'+bmi,L,R,Rd,Rc);
-    a4(bm_stmA,sti+'|'+si+'|'+bmi,L,R,Rd,Rc);
-    a4(bm_ltmA,lti+'|'+si+'|'+bmi,L,R,Rd,Rc);
-    a4(bm_mxstA,mi+'|'+sti+'|'+bmi,L,R,Rd,Rc);
-    a4(bm_cmA,ci+'|'+bmi,L,R,Rd,Rc);
-    a4(bm_csmA,ci+'|'+si+'|'+bmi,L,R,Rd,Rc);
-    a4(bm_cxmA,ci+'|'+mi+'|'+bmi,L,R,Rd,Rc);
-    a4(bm_univA,mi+'|'+si+'|'+sti+'|'+lti+'|'+bmi,L,R,Rd,Rc);
+    a4(bm_mA,li+'',L,0,0,0);if(R>0)a4(bm_mA,bmi+'',0,R,Rd,Rc);
+    a4(bm_smA,si+'|'+li,L,0,0,0);if(R>0)a4(bm_smA,si+'|'+bmi,0,R,Rd,Rc);
+    a4(bm_mmA,mi+'|'+si+'|'+li,L,0,0,0);if(R>0)a4(bm_mmA,mi+'|'+si+'|'+bmi,0,R,Rd,Rc);
+    a4(bm_stmA,sti+'|'+si+'|'+li,L,0,0,0);if(R>0)a4(bm_stmA,sti+'|'+si+'|'+bmi,0,R,Rd,Rc);
+    a4(bm_ltmA,lti+'|'+si+'|'+li,L,0,0,0);if(R>0)a4(bm_ltmA,lti+'|'+si+'|'+bmi,0,R,Rd,Rc);
+    a4(bm_mxstA,mi+'|'+sti+'|'+li,L,0,0,0);if(R>0)a4(bm_mxstA,mi+'|'+sti+'|'+bmi,0,R,Rd,Rc);
+    a4(bm_cmA,ci+'|'+li,L,0,0,0);if(R>0)a4(bm_cmA,ci+'|'+bmi,0,R,Rd,Rc);
+    a4(bm_csmA,ci+'|'+si+'|'+li,L,0,0,0);if(R>0)a4(bm_csmA,ci+'|'+si+'|'+bmi,0,R,Rd,Rc);
+    a4(bm_cxmA,ci+'|'+mi+'|'+li,L,0,0,0);if(R>0)a4(bm_cxmA,ci+'|'+mi+'|'+bmi,0,R,Rd,Rc);
+    a4(bm_univA,mi+'|'+si+'|'+sti+'|'+lti+'|'+li,L,0,0,0);if(R>0)a4(bm_univA,mi+'|'+si+'|'+sti+'|'+lti+'|'+bmi,0,R,Rd,Rc);
 
     // Web ID (Direct Push / L1 Nurtured) dimension
     a4(wmA,wi+'|'+li,L,R,Rd,Rc);
     a4(cwmA,ci+'|'+wi+'|'+li,L,R,Rd,Rc);
     a4(wunivA,mi+'|'+wi+'|'+sti+'|'+lti+'|'+li,L,R,Rd,Rc);
-    a4(bm_wmA,wi+'|'+bmi,L,R,Rd,Rc);
-    a4(bm_cwmA,ci+'|'+wi+'|'+bmi,L,R,Rd,Rc);
-    a4(bm_wunivA,mi+'|'+wi+'|'+sti+'|'+lti+'|'+bmi,L,R,Rd,Rc);
+    a4(bm_wmA,wi+'|'+li,L,0,0,0);if(R>0)a4(bm_wmA,wi+'|'+bmi,0,R,Rd,Rc);
+    a4(bm_cwmA,ci+'|'+wi+'|'+li,L,0,0,0);if(R>0)a4(bm_cwmA,ci+'|'+wi+'|'+bmi,0,R,Rd,Rc);
+    a4(bm_wunivA,mi+'|'+wi+'|'+sti+'|'+lti+'|'+li,L,0,0,0);if(R>0)a4(bm_wunivA,mi+'|'+wi+'|'+sti+'|'+lti+'|'+bmi,0,R,Rd,Rc);
 
     // Retail Dispersion (day-bucket legacy — kept for data integrity)
     if(r.isBooked&&r.leadDate&&r.retailDate){
