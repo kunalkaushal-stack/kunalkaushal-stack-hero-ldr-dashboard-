@@ -1329,6 +1329,11 @@ function formatRetailDate(d) {
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   return String(d.getDate()).padStart(2,'0') + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
 }
+function heroMonthFromDate(d) {
+  if (!d || !(d instanceof Date) || isNaN(d.getTime())) return '';
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return months[d.getMonth()] + "'" + d.getFullYear();
+}
 
 function SummaryBar({ kpis }) {
   if (!kpis || kpis.length === 0) return null;
@@ -6052,6 +6057,9 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen,upgradeRequested,onRequ
   const [diagnostics,setDiagnostics]=useState(null);
   const [tab,setTab]=useState('overview');
   const [leadsMode,setLeadsMode]=useState('update');
+  const [l1vMode,setL1vMode]=useState(false);
+  const [rawJoinedL1V,setRawJoinedL1V]=useState([]);
+  const [dataL1V,setDataL1V]=useState(null);
   const [RT,setRT]=useState('all');
   const [filters,setFilters]=useState({months:new Set(),leadTypes:new Set(),sources:new Set(),models:new Set(),states:new Set(),cities:new Set(),purMdls:new Set()});
   const [isPending,startT]=useTransition();
@@ -6079,6 +6087,20 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen,upgradeRequested,onRequ
       if(!joined.length)throw new Error('No rows after join. Check opty_id / sourceLeadId column names.');
       const payload=buildPayload(joined);
       setRawJoined(joined);
+      // L1 Verified subset: Direct Push / L1 Nurtured leads with a verified date
+      // Month attribution: if L1_Verified_Date is in a different month than lead_month, use verified date's month
+      const l1vRows=joined.filter(r=>{
+        const wid=(r.webId||'').toLowerCase().trim();
+        return (wid==='l1 nurtured'||wid==='direct push')&&r.l1VerifiedDate;
+      }).map(r=>{
+        const verDate=parseHeroDate(r.l1VerifiedDate);
+        const verMonth=verDate?heroMonthFromDate(verDate):'';
+        const l1vMonth=(verMonth&&verMonth!==r.lead_month)?verMonth:r.lead_month;
+        return{...r,lead_month:l1vMonth};
+      });
+      const l1vPayload=buildPayload(l1vRows);
+      setRawJoinedL1V(l1vRows);
+      setDataL1V({...l1vPayload,retailTillDate:retailResult.maxRetailDate});
       // Non-scope retail sheet has an empty first row; skip it so parseCsvToRows sees the real header
       const nsRetailCsvFixed=nsRetailCSV.replace(/^[,\r\n]+/,'');
       const nsRaw=parseCsvToRows(nsRetailCsvFixed);
@@ -6359,23 +6381,24 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen,upgradeRequested,onRequ
   useEffect(()=>{if(HERO_SHEETS_CONFIG.AUTO_SYNC_ON_LOAD)handleSync();},[]);
 
   const effectiveData=useMemo(()=>{
-    if(!data)return null;
+    const base=(l1vMode&&dataL1V)?dataL1V:data;
+    if(!base)return null;
     // On Create: lead_month dimension (default)
-    if(leadsMode==='create')return data;
+    if(leadsMode==='create')return base;
     // On Update: booking_month dimension (booked leads → booking_month; unbooked → lead_month)
-    if(!data.bm_monthly)return data;
+    if(!base.bm_monthly)return base;
     return{
-      ...data,
-      monthly:data.bm_monthly,sm:data.bm_sm,ltm:data.bm_ltm,mm:data.bm_mm,stm:data.bm_stm,
-      mxst:data.bm_mxst,cm:data.bm_cm||[],csm:data.bm_csm||[],cxm:data.bm_cxm||[],univ:data.bm_univ,
-      pmsm:data.bm_pmsm||[],
-      pm_ltm:data.bm_pm_ltm||[],pm_csm:data.bm_pm_csm||[],
-      pm_mxst:data.bm_pm_mxst||[],
-      wm:data.bm_wm||[],cwm:data.bm_cwm||[],wuniv:data.bm_wuniv||[],
-      mlt:data.mlt||[],stlt:data.stlt||[],cdm:data.cdm||[],cdsm:data.cdsm||[],stcm:data.stcm||[],
-      disp:data.disp||[],
+      ...base,
+      monthly:base.bm_monthly,sm:base.bm_sm,ltm:base.bm_ltm,mm:base.bm_mm,stm:base.bm_stm,
+      mxst:base.bm_mxst,cm:base.bm_cm||[],csm:base.bm_csm||[],cxm:base.bm_cxm||[],univ:base.bm_univ,
+      pmsm:base.bm_pmsm||[],
+      pm_ltm:base.bm_pm_ltm||[],pm_csm:base.bm_pm_csm||[],
+      pm_mxst:base.bm_pm_mxst||[],
+      wm:base.bm_wm||[],cwm:base.bm_cwm||[],wuniv:base.bm_wuniv||[],
+      mlt:base.mlt||[],stlt:base.stlt||[],cdm:base.cdm||[],cdsm:base.cdsm||[],stcm:base.stcm||[],
+      disp:base.disp||[],
     };
-  },[data,leadsMode]);
+  },[data,dataL1V,leadsMode,l1vMode]);
 
   const months=useMemo(()=>{
     if(!effectiveData)return[];
@@ -6405,6 +6428,8 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen,upgradeRequested,onRequ
     exportDetailedCsv(rawJoined,filters,RT,leadsMode,'Hero_'+tabName+'_Detailed_'+suffix+'.csv',month||null,viewerMode);
   },[rawJoined,filters,RT,leadsMode,viewerMode]);
 
+  const effectiveRawJoined=l1vMode?rawJoinedL1V:(rawJoined||[]);
+  const effectiveRawData=(l1vMode&&dataL1V)?dataL1V:data;
   const tabContent=useMemo(()=>{
     if(!effectiveData)return null;
     // noSource: combined flag — hides source columns in DimGrid (viewer & client)
@@ -6414,21 +6439,21 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen,upgradeRequested,onRequ
     const props={data:effectiveData,filters,months,RT,viewerMode:noSource,clientMode,onDetailedCsv:clientDetailedCsv};
     switch(tab){
       case 'overview':    return ce(OverviewTab,      props);
-      case 'source':      return ce(SourceTab,        {...props,rawData:data,nsRetailRows,rawJoined});
-      case 'webid':       return ce(WebIdTab,         {...props,rawJoined,leadsMode,nsRetailRows});
+      case 'source':      return ce(SourceTab,        {...props,rawData:effectiveRawData,nsRetailRows,rawJoined:effectiveRawJoined});
+      case 'webid':       return ce(WebIdTab,         {...props,rawJoined:effectiveRawJoined,leadsMode,nsRetailRows});
       case 'ltxsrc':      return ce(LTSourceTab,      props);
       case 'modelxsrc':   return ce(ModelSourceTab,   props);
-      case 'statexsrc':   return ce(StateSourceTab,   {...props,rawJoined,leadsMode,nsRetailRows});
+      case 'statexsrc':   return ce(StateSourceTab,   {...props,rawJoined:effectiveRawJoined,leadsMode,nsRetailRows});
       case 'cityxsrc':    return ce(CitySourceTab,    props);
       case 'statexmodel': return ce(StateModelTab,    props);
       case 'cityxmodel':  return ce(CityModelTab,     props);
-      case 'geodealer':       return ce(GeoAndDealerTab,      {...props,rawJoined,leadsMode});
-      case 'targetdelivery':  return ce(TargetDeliveryTab,   {data:effectiveData,filters,RT,rawJoined,leadsMode,viewerMode:noSource});
+      case 'geodealer':       return ce(GeoAndDealerTab,      {...props,rawJoined:effectiveRawJoined,leadsMode});
+      case 'targetdelivery':  return ce(TargetDeliveryTab,   {data:effectiveData,filters,RT,rawJoined:effectiveRawJoined,leadsMode,viewerMode:noSource});
       case 'dispersion':      return ce(DispersionTab,       props);
-      case 'pivot':       return ce(PivotTab,         {...props,rawJoined,leadsMode});
+      case 'pivot':       return ce(PivotTab,         {...props,rawJoined:effectiveRawJoined,leadsMode});
       default: return null;
     }
-  },[tab,data,effectiveData,filters,months,RT,viewerMode,clientMode,onDetailedCsv,rawJoined,leadsMode,nsRetailRows]);
+  },[tab,data,dataL1V,effectiveData,effectiveRawData,effectiveRawJoined,filters,months,RT,viewerMode,clientMode,onDetailedCsv,leadsMode,l1vMode,nsRetailRows]);
 
   if(!effectiveData)return ce(HeroSyncScreen,{onSync:handleSync,syncing,syncErr});
 
@@ -6472,6 +6497,15 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen,upgradeRequested,onRequ
           ce('button',{onClick:()=>setLeadsMode('update'),
             style:{padding:'4px 12px',fontSize:10,fontWeight:700,fontFamily:'inherit',border:'none',borderRadius:18,cursor:'pointer',transition:'all 120ms',
               background:leadsMode==='update'?'#9A3412':'transparent',color:leadsMode==='update'?'#fff':'#64748B',whiteSpace:'nowrap'}},'On Update'),
+        ),
+        !clientMode&&ce('button',{onClick:()=>setL1vMode(m=>!m),title:'Filter to L1 Verified leads only (Direct Push + L1 Nurtured with L1_Verified_Date)',
+          style:{flexShrink:0,padding:'4px 14px',fontSize:10,fontWeight:700,fontFamily:'inherit',
+            border:'2px solid '+(l1vMode?'#fff':'rgba(255,255,255,.45)'),
+            borderRadius:18,cursor:'pointer',transition:'all 120ms',
+            background:l1vMode?'#fff':'transparent',
+            color:l1vMode?'#9A3412':'rgba(255,255,255,.9)',
+            whiteSpace:'nowrap'}},
+          (l1vMode?'✓ ':'')+'L1 Verified'
         ),
         ce('div',{style:{borderLeft:'1px solid rgba(255,255,255,.25)',paddingLeft:10,marginLeft:4,flexShrink:0}},
           ce(PresenceStrip,{presence,fbUser,role,onSignOut,onAdminOpen})
