@@ -29,6 +29,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /hero_invited_emails/{email} {
+      // Admin can create/update/delete invitations.
+      allow write: if isAdmin();
+      // Any authenticated user can read their own invitation doc on sign-in.
+      allow read: if request.auth != null;
+    }
+
     // All other collections are denied.
     match /{document=**} {
       allow read, write: if false;
