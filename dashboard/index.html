@@ -2284,7 +2284,7 @@ const OverviewTab = React.memo(function OverviewTab({ data, filters, RT, clientM
         )
       )
     ),
-    heatData.top10.length > 0 && ce('div', { className:'card', style:{padding:'16px 18px',marginBottom:14} },
+    !clientMode && heatData.top10.length > 0 && ce('div', { className:'card', style:{padding:'16px 18px',marginBottom:14} },
       ce('div', { style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4} },
         ce('div', { className:'section-title', style:{marginBottom:0} }, '🔥 Model × State — Lead Volume (All Models × Top 15 States)'),
         !clientMode && ce(ExportBtn, { onClick:() => {
@@ -2328,7 +2328,7 @@ const OverviewTab = React.memo(function OverviewTab({ data, filters, RT, clientM
       )
     ),
 
-    heatDataRetail.top10.length > 0 && ce('div', { className:'card', style:{padding:'16px 18px',marginBottom:14} },
+    !clientMode && heatDataRetail.top10.length > 0 && ce('div', { className:'card', style:{padding:'16px 18px',marginBottom:14} },
       ce('div', { style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4} },
         ce('div', { className:'section-title', style:{marginBottom:0} }, '🛒 Model × State — Retail Volume (All Models × Top 15 States)'),
         !clientMode && ce(ExportBtn, { onClick:() => {
@@ -3170,7 +3170,7 @@ const GeoAndDealerTab = React.memo(function GeoAndDealerTab({ data, filters, mon
     { label:'Leads',        val: fmt(totals.leads) },
     { label:'Retail',       val: fmt(totals.retail) },
     { label:'Conv%',        val: pct(totals.retail, totals.leads) },
-    { label:'WIP',          val: fmt(totals.wip) },
+    ...(!clientMode ? [{ label:'WIP', val: fmt(totals.wip) }] : []),
     { label:'Direct Push',  val: fmt(totals.dp) },
     { label:'L1 Nurtured',  val: fmt(totals.l1) },
     { label:'Lost',         val: fmt(totals.lost) },
@@ -3220,12 +3220,12 @@ const GeoAndDealerTab = React.memo(function GeoAndDealerTab({ data, filters, mon
             ce('tr', null,
               TH('oemCrmId','Dealer Code','left',{left:0,zIndex:4}), TH('dealer','Dealer','left'), TH('ao','AO','left'), TH('state','State','left'), TH('region','Region','left'), TH('city','City','left'),
               TH('leads','Leads'), TH('retail','Retail'), TH('conv','Conv%'),
-              TH('wip','WIP'), TH('dp','Direct Push'), TH('l1','L1 Nurtured'), TH('lost','Lost')
+              ...(!clientMode?[TH('wip','WIP')]:[]), TH('dp','Direct Push'), TH('l1','L1 Nurtured'), TH('lost','Lost')
             )
           ),
           ce('tbody', null,
             sortedRows.length === 0
-              ? ce('tr', null, ce('td', { colSpan:13, style:{ textAlign:'center', padding:24, color:'#94a3b8' } }, 'No data for selected filters'))
+              ? ce('tr', null, ce('td', { colSpan:clientMode?12:13, style:{ textAlign:'center', padding:24, color:'#94a3b8' } }, 'No data for selected filters'))
               : [
                   ...sortedRows.map((r, i) =>
                     ce('tr', { key: r.dealer+r.ao+r.state+r.region,
@@ -3239,7 +3239,7 @@ const GeoAndDealerTab = React.memo(function GeoAndDealerTab({ data, filters, mon
                       ce('td',{style:{padding:'7px 10px',textAlign:'center',fontWeight:600}},fmt(r.leads)),
                       ce('td',{style:{padding:'7px 10px',textAlign:'center',fontWeight:600}},fmt(r.retail)),
                       ce('td',{style:{padding:'7px 10px',textAlign:'center',color:'#059669'}},pct(r.retail,r.leads)),
-                      ce('td',{style:{padding:'7px 10px',textAlign:'center'}},fmt(r.wip)),
+                      ...(!clientMode?[ce('td',{key:'wip',style:{padding:'7px 10px',textAlign:'center'}},fmt(r.wip))]:[]),
                       ce('td',{style:{padding:'7px 10px',textAlign:'center'}},fmt(r.dp)),
                       ce('td',{style:{padding:'7px 10px',textAlign:'center'}},fmt(r.l1)),
                       ce('td',{style:{padding:'7px 10px',textAlign:'center'}},fmt(r.lost))
@@ -3250,7 +3250,7 @@ const GeoAndDealerTab = React.memo(function GeoAndDealerTab({ data, filters, mon
                     ce('td',{style:{padding:'8px 10px',textAlign:'center'}},fmt(totals.leads)),
                     ce('td',{style:{padding:'8px 10px',textAlign:'center'}},fmt(totals.retail)),
                     ce('td',{style:{padding:'8px 10px',textAlign:'center'}},pct(totals.retail,totals.leads)),
-                    ce('td',{style:{padding:'8px 10px',textAlign:'center'}},fmt(totals.wip)),
+                    ...(!clientMode?[ce('td',{key:'wip-t',style:{padding:'8px 10px',textAlign:'center'}},fmt(totals.wip))]:[]),
                     ce('td',{style:{padding:'8px 10px',textAlign:'center'}},fmt(totals.dp)),
                     ce('td',{style:{padding:'8px 10px',textAlign:'center'}},fmt(totals.l1)),
                     ce('td',{style:{padding:'8px 10px',textAlign:'center'}},fmt(totals.lost))
