@@ -1875,7 +1875,7 @@ function MonthlyGrids({ title, months, renderAgg, srcGroups, dimLabel, expandedG
 /* ════════════════════════════════════════════════════════════════════
    OVERVIEW TAB
    ════════════════════════════════════════════════════════════════════ */
-const OverviewTab = React.memo(function OverviewTab({ data, filters, RT }) {
+const OverviewTab = React.memo(function OverviewTab({ data, filters, RT, clientMode }) {
   const { maps, monthly, sm, cm, mxst, univ: univRaw, csm: csmRaw } = data;
   const csm = csmRaw || [];
   const univ = univRaw || [];
@@ -2200,8 +2200,10 @@ const OverviewTab = React.memo(function OverviewTab({ data, filters, RT }) {
     { label:'Total Leads',        value:Nf(totals.l),                      sub:'All sources',             color:'#003087' },
     { label:'Total Retails',      value:Nf(totals.r),                      sub:'Converted',               color:'#EA580C' },
     { label:'L2R %',              value:totals.l2r.toFixed(1)+'%',         sub:'Retails ÷ Leads',         color:'#F5A623' },
-    { label:'Paid L2R%',          value:totals.pL2r.toFixed(1)+'%',        sub:Nf(totals.pL)+' paid leads',  color:'#7C3AED' },
-    { label:'Organic L2R%',       value:totals.oL2r.toFixed(1)+'%',        sub:Nf(totals.oL)+' organic leads', color:'#059669' },
+    ...(!clientMode ? [
+      { label:'Paid L2R%',        value:totals.pL2r.toFixed(1)+'%',        sub:Nf(totals.pL)+' paid leads',  color:'#7C3AED' },
+      { label:'Organic L2R%',     value:totals.oL2r.toFixed(1)+'%',        sub:Nf(totals.oL)+' organic leads', color:'#059669' },
+    ] : []),
     { label:'Retail Till Date',   value:data.retailTillDate ? formatRetailDate(data.retailTillDate) : '—', sub:'Last attribution date', color:'#0369A1' },
   ];
 
@@ -2225,9 +2227,11 @@ const OverviewTab = React.memo(function OverviewTab({ data, filters, RT }) {
             { label:'DMS Retails', value:Nf(totals.dL),  color:'#7C3AED' },
             { label:'Call Out',    value:Nf(totals.coL), color:'#0891B2' },
           ] : []),
-          { label:'Paid %',       value:totals.l>0?Pf(totals.pL/totals.l*100):'—', color:'#6366F1' },
-          { label:'Organic %',    value:totals.l>0?Pf(totals.oL/totals.l*100):'—', color:'#059669' },
-          { label:'Active Sources', value:String(srcBreak.filter(s=>s.l>0).length), color:'#475569' },
+          ...(!clientMode ? [
+            { label:'Paid %',       value:totals.l>0?Pf(totals.pL/totals.l*100):'—', color:'#6366F1' },
+            { label:'Organic %',    value:totals.l>0?Pf(totals.oL/totals.l*100):'—', color:'#059669' },
+            { label:'Active Sources', value:String(srcBreak.filter(s=>s.l>0).length), color:'#475569' },
+          ] : []),
           { label:'Models',        value:String(heatData.top10.length),              color:'#475569' },
           { label:'States',        value:String(heatData.top15.length),              color:'#475569' },
         ].map((s,i) => ce('div', { key:i, style:{
@@ -2239,7 +2243,7 @@ const OverviewTab = React.memo(function OverviewTab({ data, filters, RT }) {
         ))
       )
     ),
-    ce('div', { className:'card', style:{padding:'16px 18px',marginBottom:14} },
+    !clientMode && ce('div', { className:'card', style:{padding:'16px 18px',marginBottom:14} },
       ce('div', { style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8} },
         ce('div', { className:'section-title', style:{marginBottom:0} }, 'Source Summary'),
         ce(ExportBtn, { onClick:() => {
@@ -6410,7 +6414,7 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen,upgradeRequested,onRequ
 
   const visibleTabs=useMemo(()=>
     clientMode
-      ?TABS.filter(t=>['modelxsrc','geodealer','targetdelivery'].includes(t.id))
+      ?TABS.filter(t=>['overview','modelxsrc','geodealer','targetdelivery'].includes(t.id))
       :viewerMode
       ?TABS.filter(t=>['modelxsrc','statexsrc','webid','geodealer','targetdelivery'].includes(t.id))
       :TABS
