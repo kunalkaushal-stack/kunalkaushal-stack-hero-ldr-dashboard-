@@ -1153,7 +1153,7 @@ function HeroSyncScreen({onSync,syncing,syncErr}){
         ce('div',{style:{width:36,height:36,borderRadius:8,background:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:900,color:'#EA580C'}},'H'),
         ce('div',{style:{textAlign:'left'}},
           ce('div',{style:{fontSize:14,fontWeight:800,color:'#fff',letterSpacing:'-.02em'}},'Hero MotoCorp'),
-          ce('div',{style:{fontSize:9,color:'#FED7AA',letterSpacing:'.06em',fontWeight:600}},'CUSTOMER PERFORMANCE SUITE v2.0')
+          ce('div',{style:{fontSize:9,color:'#FED7AA',letterSpacing:'.06em',fontWeight:600}},'CPS Performance v2.0')
         )
       ),
       ce('h2',{style:{fontSize:18,fontWeight:700,color:'#111827',margin:'0 0 8px'}},syncing?'Loading data\u2026':'Load Dashboard Data'),
@@ -3209,7 +3209,7 @@ const GeoAndDealerTab = React.memo(function GeoAndDealerTab({ data, filters, mon
           onClick:()=>setSearch(''),
           style:{ padding:'7px 11px', border:'1px solid #e2e8f0', borderRadius:6, background:'#f1f5f9', cursor:'pointer', fontSize:12, color:'#64748b', whiteSpace:'nowrap' }
         }, '✕ Clear'),
-        !clientMode && ce('button', {
+        ce('button', {
           onClick:exportCsv,
           style:{ padding:'7px 13px', background:'#9A3412', color:'#fff', border:'none', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600, whiteSpace:'nowrap' }
         }, 'Export CSV')
@@ -3364,7 +3364,7 @@ const ModelSourceTab = React.memo(function ModelSourceTab({ data, filters, month
     return mergeLeadRetailAggs(leadsAgg, retailAgg);
   }, [mm, pmsm, univ, maps, filters, getLR]);
 
-  return ce(MonthlyGrids, { title:'Model Performance', months, renderAgg, srcGroups, dimLabel:'Model', expandedGrps, onToggleGrp, viewerMode, onDetailedCsv, noExport:clientMode });
+  return ce(MonthlyGrids, { title:'Model Performance', months, renderAgg, srcGroups, dimLabel:'Model', expandedGrps, onToggleGrp, viewerMode, onDetailedCsv });
 });
 
 /* ════════════════════════════════════════════════════════════════════
@@ -3652,7 +3652,7 @@ const StateSourceTab = React.memo(function StateSourceTab({ data, filters, month
 const TD_MONTH_BTNS = ['all','Aug\'26','Sep\'26','Oct\'26','Nov\'26','Dec\'26','Jan\'27','Feb\'27','Mar\'27'];
 const TD_MONTH_FULL = {'Aug\'26':'Aug\'2026','Sep\'26':'Sep\'2026','Oct\'26':'Oct\'2026','Nov\'26':'Nov\'2026','Dec\'26':'Dec\'2026','Jan\'27':'Jan\'2027','Feb\'27':'Feb\'2027','Mar\'27':'Mar\'2027'};
 
-const TargetDeliveryTab = React.memo(function TargetDeliveryTab({ data, filters, RT, rawJoined, leadsMode, viewerMode }) {
+const TargetDeliveryTab = React.memo(function TargetDeliveryTab({ data, filters, RT, rawJoined, leadsMode, viewerMode, clientMode }) {
   const [tdMonths, setTdMonths] = useState(() => new Set()); // empty Set = All months
   const [expandedZones, setExpandedZones] = useState(() => new Set());
   const [expandedAos, setExpandedAos] = useState(() => new Set());
@@ -4365,7 +4365,7 @@ const TargetDeliveryTab = React.memo(function TargetDeliveryTab({ data, filters,
     ce('div',{className:'card',style:{padding:'16px 18px',marginBottom:20}},
       ce('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}},
         ce('div',{style:{fontWeight:700,fontSize:11,color:'#1E3A8A',letterSpacing:'.04em',textTransform:'uppercase'}},'Target vs Delivery — Zone × AO × Model'),
-        !viewerMode&&ce(CsvBtn,{onClick:onGridExport}),
+        (!viewerMode||clientMode)&&ce(CsvBtn,{onClick:onGridExport}),
       ),
       ce('div',{style:{overflowX:'auto',borderRadius:8,boxShadow:'0 1px 6px rgba(0,0,0,.08)'}},
         ce('table',{id:'td-detail-table',style:{width:'100%',borderCollapse:'collapse',fontSize:11,tableLayout:'auto'}},
@@ -6452,7 +6452,7 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen,upgradeRequested,onRequ
       case 'statexmodel': return ce(StateModelTab,    props);
       case 'cityxmodel':  return ce(CityModelTab,     props);
       case 'geodealer':       return ce(GeoAndDealerTab,      {...props,rawJoined:effectiveRawJoined,leadsMode});
-      case 'targetdelivery':  return ce(TargetDeliveryTab,   {data:effectiveData,filters,RT,rawJoined:effectiveRawJoined,leadsMode,viewerMode:noSource});
+      case 'targetdelivery':  return ce(TargetDeliveryTab,   {data:effectiveData,filters,RT,rawJoined:effectiveRawJoined,leadsMode,viewerMode:noSource,clientMode});
       case 'dispersion':      return ce(DispersionTab,       props);
       case 'pivot':       return ce(PivotTab,         {...props,rawJoined:effectiveRawJoined,leadsMode});
       default: return null;
@@ -6469,7 +6469,7 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen,upgradeRequested,onRequ
           ce('div',{style:{width:34,height:34,borderRadius:8,background:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:900,color:'#EA580C',boxShadow:'0 2px 8px rgba(0,0,0,.15)'}},'H'),
           ce('div',null,
             ce('div',{className:'hdr-title'},'Hero CPS'),
-            ce('div',{className:'hdr-sub'},'CUSTOMER PERFORMANCE SUITE v2.0 \u00b7 BikeDekho')
+            ce('div',{className:'hdr-sub'},'CPS Performance v2.0 \u00b7 BikeDekho')
           )
         ),
         (()=>{
@@ -6622,7 +6622,7 @@ function LoginPage({onLogin,loading,error}){
         ce('div',{style:{width:36,height:36,borderRadius:8,background:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:900,color:'#EA580C'}},'H'),
         ce('div',{style:{textAlign:'left'}},
           ce('div',{style:{fontSize:14,fontWeight:800,color:'#fff',letterSpacing:'-.02em'}},'Hero MotoCorp'),
-          ce('div',{style:{fontSize:9,color:'#FED7AA',letterSpacing:'.06em',fontWeight:600}},'CUSTOMER PERFORMANCE SUITE')
+          ce('div',{style:{fontSize:9,color:'#FED7AA',letterSpacing:'.06em',fontWeight:600}},'CPS Performance')
         )
       ),
       ce('h2',{style:{fontSize:18,fontWeight:700,color:'#111827',margin:'0 0 8px'}},'Sign in to access'),
