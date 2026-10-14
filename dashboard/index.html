@@ -2287,7 +2287,7 @@ const OverviewTab = React.memo(function OverviewTab({ data, filters, RT, clientM
     heatData.top10.length > 0 && ce('div', { className:'card', style:{padding:'16px 18px',marginBottom:14} },
       ce('div', { style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4} },
         ce('div', { className:'section-title', style:{marginBottom:0} }, '🔥 Model × State — Lead Volume (All Models × Top 15 States)'),
-        ce(ExportBtn, { onClick:() => {
+        !clientMode && ce(ExportBtn, { onClick:() => {
           const aoa = [['Model', ...heatData.top15]];
           for (const mdl of heatData.top10) {
             aoa.push([mdl, ...heatData.top15.map(st => heatData.cell.get(mdl+'\x00'+st) || 0)]);
@@ -2331,7 +2331,7 @@ const OverviewTab = React.memo(function OverviewTab({ data, filters, RT, clientM
     heatDataRetail.top10.length > 0 && ce('div', { className:'card', style:{padding:'16px 18px',marginBottom:14} },
       ce('div', { style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4} },
         ce('div', { className:'section-title', style:{marginBottom:0} }, '🛒 Model × State — Retail Volume (All Models × Top 15 States)'),
-        ce(ExportBtn, { onClick:() => {
+        !clientMode && ce(ExportBtn, { onClick:() => {
           const aoa = [['Model', ...heatDataRetail.top15]];
           for (const mdl of heatDataRetail.top10) {
             aoa.push([mdl, ...heatDataRetail.top15.map(st => heatDataRetail.cell.get(mdl+'\x00'+st) || 0)]);
@@ -3209,7 +3209,7 @@ const GeoAndDealerTab = React.memo(function GeoAndDealerTab({ data, filters, mon
           onClick:()=>setSearch(''),
           style:{ padding:'7px 11px', border:'1px solid #e2e8f0', borderRadius:6, background:'#f1f5f9', cursor:'pointer', fontSize:12, color:'#64748b', whiteSpace:'nowrap' }
         }, '✕ Clear'),
-        ce('button', {
+        !clientMode && ce('button', {
           onClick:exportCsv,
           style:{ padding:'7px 13px', background:'#9A3412', color:'#fff', border:'none', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600, whiteSpace:'nowrap' }
         }, 'Export CSV')
@@ -3364,7 +3364,7 @@ const ModelSourceTab = React.memo(function ModelSourceTab({ data, filters, month
     return mergeLeadRetailAggs(leadsAgg, retailAgg);
   }, [mm, pmsm, univ, maps, filters, getLR]);
 
-  return ce(MonthlyGrids, { title:'Model Performance', months, renderAgg, srcGroups, dimLabel:'Model', expandedGrps, onToggleGrp, viewerMode, onDetailedCsv });
+  return ce(MonthlyGrids, { title:'Model Performance', months, renderAgg, srcGroups, dimLabel:'Model', expandedGrps, onToggleGrp, viewerMode, onDetailedCsv, noExport:clientMode });
 });
 
 /* ════════════════════════════════════════════════════════════════════
@@ -4366,7 +4366,7 @@ const TargetDeliveryTab = React.memo(function TargetDeliveryTab({ data, filters,
     ce('div',{className:'card',style:{padding:'16px 18px',marginBottom:20}},
       ce('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}},
         ce('div',{style:{fontWeight:700,fontSize:11,color:'#1E3A8A',letterSpacing:'.04em',textTransform:'uppercase'}},tgt+' vs Delivery — Zone × AO × Model'),
-        (!viewerMode||clientMode)&&ce(CsvBtn,{onClick:onGridExport}),
+        !viewerMode&&ce(CsvBtn,{onClick:onGridExport}),
       ),
       ce('div',{style:{overflowX:'auto',borderRadius:8,boxShadow:'0 1px 6px rgba(0,0,0,.08)'}},
         ce('table',{id:'td-detail-table',style:{width:'100%',borderCollapse:'collapse',fontSize:11,tableLayout:'auto'}},
