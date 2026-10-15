@@ -2832,19 +2832,23 @@ const WebIdTab = React.memo(function WebIdTab({ data, filters, months, RT, onDet
     const byWid = new Map();
     let gL=0, gR=0;
     for (const row of (rawJoined||[])) {
-      const effMonth = (leadsMode==='update'&&row.isBooked&&row.booking_month)?row.booking_month:row.lead_month;
-      if (effMonth !== M) continue;
+      const leadMonth = row.lead_month;
+      const retailMonth = (leadsMode==='update'&&row.isBooked&&row.booking_month)?row.booking_month:row.lead_month;
+      const inL = leadMonth === M;
+      const isR = isRetailedLead(row);
+      const purOk = allPurMdl||!isR||pmf.has(canonPurMdl(row.purchasedModel||''));
+      const rVal = (isR&&purOk&&(RT==='dms'?row.callType==='dms':RT==='co'?row.callType==='co':true))?1:0;
+      const inR = rVal>0 && retailMonth===M;
+      if (!inL && !inR) continue;
       if (!allS    && (sf  ===FILTER_CLEARED||!sf.has(row.source)))  continue;
       if (!allLT   && (ltf ===FILTER_CLEARED||!ltf.has(row.lt)))     continue;
       if (!allMdl  && (mdf ===FILTER_CLEARED||!mdf.has(row.model)))  continue;
       if (!allSt   && (stf ===FILTER_CLEARED||!stf.has(row.state)))  continue;
       if (!allCity && (cf  ===FILTER_CLEARED||!cf.has(row.city)))    continue;
       const wid = row.webId||'Unknown';
-      const isR = isRetailedLead(row);
-      const purOk = allPurMdl||!isR||pmf.has(canonPurMdl(row.purchasedModel||''));
-      const rVal = (isR&&purOk&&(RT==='dms'?row.callType==='dms':RT==='co'?row.callType==='co':true))?1:0;
-      gL++; gR+=rVal;
-      const c=byWid.get(wid)||[0,0]; c[0]++; c[1]+=rVal; byWid.set(wid,c);
+      const lAdd=inL?1:0, rAdd=inR?1:0;
+      gL+=lAdd; gR+=rAdd;
+      const c=byWid.get(wid)||[0,0]; c[0]+=lAdd; c[1]+=rAdd; byWid.set(wid,c);
     }
     // NR pass: group by leadCat, filter by invoiceMonth
     const nsWRows = nsRetailRows || [];
@@ -2950,19 +2954,23 @@ const WebIdTab = React.memo(function WebIdTab({ data, filters, months, RT, onDet
     let gL=0, gR=0;
     const byWid = new Map();
     for (const row of (rawJoined||[])) {
-      const effMonth = (leadsMode==='update'&&row.isBooked&&row.booking_month)?row.booking_month:row.lead_month;
-      if (!mSet.has(effMonth)) continue;
+      const leadMonth = row.lead_month;
+      const retailMonth = (leadsMode==='update'&&row.isBooked&&row.booking_month)?row.booking_month:row.lead_month;
+      const inL = mSet.has(leadMonth);
+      const isR = isRetailedLead(row);
+      const purOk = allPurMdl||!isR||pmf.has(canonPurMdl(row.purchasedModel||''));
+      const rVal = (isR&&purOk&&(RT==='dms'?row.callType==='dms':RT==='co'?row.callType==='co':true))?1:0;
+      const inR = rVal>0 && mSet.has(retailMonth);
+      if (!inL && !inR) continue;
       if (!allS    && (sf  ===FILTER_CLEARED||!sf.has(row.source)))  continue;
       if (!allLT   && (ltf ===FILTER_CLEARED||!ltf.has(row.lt)))     continue;
       if (!allMdl  && (mdf ===FILTER_CLEARED||!mdf.has(row.model)))  continue;
       if (!allSt   && (stf ===FILTER_CLEARED||!stf.has(row.state)))  continue;
       if (!allCity && (cf  ===FILTER_CLEARED||!cf.has(row.city)))    continue;
       const wid = row.webId||'Unknown';
-      const isR = isRetailedLead(row);
-      const purOk = allPurMdl||!isR||pmf.has(canonPurMdl(row.purchasedModel||''));
-      const rVal = (isR&&purOk&&(RT==='dms'?row.callType==='dms':RT==='co'?row.callType==='co':true))?1:0;
-      gL++; gR+=rVal;
-      const c=byWid.get(wid)||[0,0]; c[0]++; c[1]+=rVal; byWid.set(wid,c);
+      const lAdd=inL?1:0, rAdd=inR?1:0;
+      gL+=lAdd; gR+=rAdd;
+      const c=byWid.get(wid)||[0,0]; c[0]+=lAdd; c[1]+=rAdd; byWid.set(wid,c);
     }
     // NR cross-month pass
     const nsWRows2 = nsRetailRows || [];
