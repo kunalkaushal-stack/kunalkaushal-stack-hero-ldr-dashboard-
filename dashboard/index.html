@@ -4765,11 +4765,12 @@ const FilterBar = React.memo(function FilterBar({ data, filters, onFiltersChange
   const states    = useMemo(() => [...new Set(maps.st)].sort(), [maps]);
   const cities    = useMemo(() => maps.city ? [...new Set(maps.city)].sort() : [], [maps]);
   const purMdls   = useMemo(() => maps.purMdl ? [...new Set(maps.purMdl)].filter(Boolean).sort() : [], [maps]);
+  const webIds    = useMemo(() => [...new Set(maps.webId)].filter(w => w && w !== 'Unknown').sort(), [maps]);
 
   function set(key, val) { onFiltersChange({ ...filters, [key]: val }); }
-  function reset() { onFiltersChange({ months: new Set(), leadTypes: new Set(), sources: new Set(), models: new Set(), states: new Set(), cities: new Set(), purMdls: new Set() }); setRT('all'); }
+  function reset() { onFiltersChange({ months: new Set(), leadTypes: new Set(), sources: new Set(), models: new Set(), states: new Set(), cities: new Set(), purMdls: new Set(), webIds: new Set() }); setRT('all'); }
 
-  const hasAnyFilter = [filters.months, filters.leadTypes, filters.sources, filters.models, filters.states, filters.cities, filters.purMdls]
+  const hasAnyFilter = [filters.months, filters.leadTypes, filters.sources, filters.models, filters.states, filters.cities, filters.purMdls, filters.webIds]
     .some(s => s && s.size > 0) || RT !== 'all';
 
   const rtBtn = (val, label) => ce('button', {
@@ -4791,6 +4792,7 @@ const FilterBar = React.memo(function FilterBar({ data, filters, onFiltersChange
     ce(MultiSelect, { label:'State',     options:states,    selected:filters.states,    onChange: v => set('states', v) }),
     cities.length > 0 && ce(MultiSelect, { label:'City', options:cities, selected:filters.cities, onChange: v => set('cities', v) }),
     purMdls.length > 0 && ce(MultiSelect, { label:'Purch. Model', options:purMdls, selected:filters.purMdls||new Set(), onChange: v => set('purMdls', v) }),
+    !clientMode && webIds.length > 0 && ce(MultiSelect, { label:'Web ID', options:webIds, selected:filters.webIds||new Set(), onChange: v => set('webIds', v) }),
     !clientMode && data.rt_cols && ce('div', { style:{display:'flex',alignItems:'center',background:'#F1F5F9',borderRadius:20,padding:'2px',border:'1px solid #E2E8F0',gap:2,flexShrink:0} },
       rtBtn('all', 'All'),
       rtBtn('dms', 'DMS'),
@@ -6073,7 +6075,7 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen,upgradeRequested,onRequ
   const [rawJoinedL1V,setRawJoinedL1V]=useState([]);
   const [dataL1V,setDataL1V]=useState(null);
   const [RT,setRT]=useState('all');
-  const [filters,setFilters]=useState({months:new Set(),leadTypes:new Set(),sources:new Set(),models:new Set(),states:new Set(),cities:new Set(),purMdls:new Set()});
+  const [filters,setFilters]=useState({months:new Set(),leadTypes:new Set(),sources:new Set(),models:new Set(),states:new Set(),cities:new Set(),purMdls:new Set(),webIds:new Set()});
   const [isPending,startT]=useTransition();
   const [fontScale,setFontScale]=useState(1.00);
   useEffect(()=>{document.documentElement.style.setProperty('--dashboard-font-scale',fontScale);},[fontScale]);
@@ -6443,30 +6445,57 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen,upgradeRequested,onRequ
 
   const effectiveRawJoined=l1vMode?rawJoinedL1V:(rawJoined||[]);
   const effectiveRawData=(l1vMode&&dataL1V)?dataL1V:data;
+
+  // WebID pre-filter: when webIds filter is active, rebuild payload from filtered rawJoined
+  // so ALL tabs see only the selected webId categories without per-tab changes.
+  const wIdFilteredRawJoined=useMemo(()=>{
+    const wf=filters.webIds;
+    if(!wf||wf.size===0)return effectiveRawJoined;
+    return effectiveRawJoined.filter(r=>wf.has(r.webId||'Unknown'));
+  },[effectiveRawJoined,filters.webIds]);
+
+  const wIdFilteredData=useMemo(()=>{
+    if(!filters.webIds||filters.webIds.size===0)return effectiveData;
+    if(!wIdFilteredRawJoined.length)return effectiveData;
+    const raw=buildPayload(wIdFilteredRawJoined);
+    const base={...raw,retailTillDate:effectiveData&&effectiveData.retailTillDate};
+    if(leadsMode==='create'||!base.bm_monthly)return base;
+    return{
+      ...base,
+      monthly:base.bm_monthly,sm:base.bm_sm,ltm:base.bm_ltm,mm:base.bm_mm,
+      stm:base.bm_stm,mxst:base.bm_mxst,cm:base.bm_cm||[],csm:base.bm_csm||[],
+      cxm:base.bm_cxm||[],univ:base.bm_univ,pmsm:base.bm_pmsm||[],
+      pm_ltm:base.bm_pm_ltm||[],pm_csm:base.bm_pm_csm||[],pm_mxst:base.bm_pm_mxst||[],
+      wm:base.bm_wm||[],cwm:base.bm_cwm||[],wuniv:base.bm_wuniv||[],
+      mlt:base.mlt||[],stlt:base.stlt||[],cdm:base.cdm||[],cdsm:base.cdsm||[],
+      stcm:base.stcm||[],disp:base.disp||[],
+    };
+  },[wIdFilteredRawJoined,filters.webIds,effectiveData,leadsMode]);
+
   const tabContent=useMemo(()=>{
     if(!effectiveData)return null;
     // noSource: combined flag — hides source columns in DimGrid (viewer & client)
     // clientMode suppresses exports and DMS/Call Out in individual tabs
     const noSource=viewerMode||clientMode;
     const clientDetailedCsv=clientMode?undefined:onDetailedCsv;
-    const props={data:effectiveData,filters,months,RT,viewerMode:noSource,clientMode,onDetailedCsv:clientDetailedCsv};
+    const props={data:wIdFilteredData,filters,months,RT,viewerMode:noSource,clientMode,onDetailedCsv:clientDetailedCsv};
     switch(tab){
       case 'overview':    return ce(OverviewTab,      props);
-      case 'source':      return ce(SourceTab,        {...props,rawData:effectiveRawData,nsRetailRows,rawJoined:effectiveRawJoined});
-      case 'webid':       return ce(WebIdTab,         {...props,rawJoined:effectiveRawJoined,leadsMode,nsRetailRows});
+      case 'source':      return ce(SourceTab,        {...props,rawData:effectiveRawData,nsRetailRows,rawJoined:wIdFilteredRawJoined});
+      case 'webid':       return ce(WebIdTab,         {...props,rawJoined:wIdFilteredRawJoined,leadsMode,nsRetailRows});
       case 'ltxsrc':      return ce(LTSourceTab,      props);
       case 'modelxsrc':   return ce(ModelSourceTab,   props);
-      case 'statexsrc':   return ce(StateSourceTab,   {...props,rawJoined:effectiveRawJoined,leadsMode,nsRetailRows});
+      case 'statexsrc':   return ce(StateSourceTab,   {...props,rawJoined:wIdFilteredRawJoined,leadsMode,nsRetailRows});
       case 'cityxsrc':    return ce(CitySourceTab,    props);
       case 'statexmodel': return ce(StateModelTab,    props);
       case 'cityxmodel':  return ce(CityModelTab,     props);
-      case 'geodealer':       return ce(GeoAndDealerTab,      {...props,rawJoined:effectiveRawJoined,leadsMode});
-      case 'targetdelivery':  return ce(TargetDeliveryTab,   {data:effectiveData,filters,RT,rawJoined:effectiveRawJoined,leadsMode,viewerMode:noSource,clientMode});
+      case 'geodealer':       return ce(GeoAndDealerTab,      {...props,rawJoined:wIdFilteredRawJoined,leadsMode});
+      case 'targetdelivery':  return ce(TargetDeliveryTab,   {data:wIdFilteredData,filters,RT,rawJoined:wIdFilteredRawJoined,leadsMode,viewerMode:noSource,clientMode});
       case 'dispersion':      return ce(DispersionTab,       props);
-      case 'pivot':       return ce(PivotTab,         {...props,rawJoined:effectiveRawJoined,leadsMode});
+      case 'pivot':       return ce(PivotTab,         {...props,rawJoined:wIdFilteredRawJoined,leadsMode});
       default: return null;
     }
-  },[tab,data,dataL1V,effectiveData,effectiveRawData,effectiveRawJoined,filters,months,RT,viewerMode,clientMode,onDetailedCsv,leadsMode,l1vMode,nsRetailRows]);
+  },[tab,data,dataL1V,effectiveData,wIdFilteredData,effectiveRawData,effectiveRawJoined,wIdFilteredRawJoined,filters,months,RT,viewerMode,clientMode,onDetailedCsv,leadsMode,l1vMode,nsRetailRows]);
 
   if(!effectiveData)return ce(HeroSyncScreen,{onSync:handleSync,syncing,syncErr});
 
@@ -6483,7 +6512,7 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen,upgradeRequested,onRequ
         ),
         (()=>{
           let gL=0,gR=0;
-          for(const row of effectiveData.monthly){gL+=row[1];gR+=row[2];}
+          for(const row of wIdFilteredData.monthly){gL+=row[1];gR+=row[2];}
           return ce('div',{style:{flex:1,display:'flex',gap:16,overflowX:'auto',padding:'8px 0',borderLeft:'1px solid rgba(255,255,255,.3)',paddingLeft:16,marginLeft:4}},
             [{l:'Leads',v:gL.toLocaleString('en-IN')},{l:'Bookings',v:gR.toLocaleString('en-IN')},
              {l:'L2R%',v:gL>0?(gR/gL*100).toFixed(1)+'%':'\u2014'},{l:'Months',v:effectiveData.maps.lm.length},
