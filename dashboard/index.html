@@ -909,11 +909,12 @@ function parseHeroNonScopeRetailRows(raw, joinedRows) {
   }
   const seen = new Set();
   const rows = [];
+  const _unmatched = [];
   for (const r of raw) {
     const sourceLeadId = get(r,['sourcelead id','sourcelead_id','source lead id','source_lead_id','sourceleadid','lead id','leadid','optyid','opty id','opty_id']);
     if (!sourceLeadId) continue;
     const lead = leadMap.get(sourceLeadId);
-    if (!lead) continue;
+    if (!lead) { _unmatched.push({opty_id:sourceLeadId,invoiceMonth:get(r,['invoice month','invoicemonth','invoice_month','performance month','performancemonth','retail month','retailmonth','month']),leadCat:get(r,['lead categorisation','lead categorization','lead_categorisation','lead_categorization','leadcategorisation','leadcat','lead cat'])}); continue; }
     const invoiceMonth = normalizeHeroMonth(get(r,['invoice month','invoicemonth','invoice_month','performance month','performancemonth','retail month','retailmonth','month']));
     if (!invoiceMonth) continue;
     // Lead Categorisation from NS sheet (e.g. "Direct Push / L1 Nurtured" or similar).
@@ -930,6 +931,7 @@ function parseHeroNonScopeRetailRows(raw, joinedRows) {
     seen.add(dedupKey);
     rows.push({opty_id:sourceLeadId,source:lead.source,state:lead.state,ao:lead.ao,city:lead.city,region:lead.region,lead_month:lead.lead_month,lt:lead.lt,model:lead.model,invoiceMonth,leadCat,invoicedModel});
   }
+  window._heroNsUnmatched = _unmatched;
   return rows;
 }
 
