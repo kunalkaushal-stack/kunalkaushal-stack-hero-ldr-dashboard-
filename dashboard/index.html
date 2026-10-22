@@ -909,14 +909,16 @@ function parseHeroNonScopeRetailRows(raw, joinedRows) {
   }
   const seen = new Set();
   const rows = [];
-  const _unmatched = [];
+  const _dropped = {noId:[], noLeadMatch:[], noInvoiceMonth:[], duplicate:[]};
   for (const r of raw) {
     const sourceLeadId = get(r,['sourcelead id','sourcelead_id','source lead id','source_lead_id','sourceleadid','lead id','leadid','optyid','opty id','opty_id']);
-    if (!sourceLeadId) continue;
+    const _im = get(r,['invoice month','invoicemonth','invoice_month','performance month','performancemonth','retail month','retailmonth','month']);
+    const _lc = get(r,['lead categorisation','lead categorization','lead_categorisation','lead_categorization','leadcategorisation','leadcat','lead cat']);
+    if (!sourceLeadId) { _dropped.noId.push({invoiceMonth:_im,leadCat:_lc}); continue; }
     const lead = leadMap.get(sourceLeadId);
-    if (!lead) { _unmatched.push({opty_id:sourceLeadId,invoiceMonth:get(r,['invoice month','invoicemonth','invoice_month','performance month','performancemonth','retail month','retailmonth','month']),leadCat:get(r,['lead categorisation','lead categorization','lead_categorisation','lead_categorization','leadcategorisation','leadcat','lead cat'])}); continue; }
-    const invoiceMonth = normalizeHeroMonth(get(r,['invoice month','invoicemonth','invoice_month','performance month','performancemonth','retail month','retailmonth','month']));
-    if (!invoiceMonth) continue;
+    if (!lead) { _dropped.noLeadMatch.push({opty_id:sourceLeadId,invoiceMonth:_im,leadCat:_lc}); continue; }
+    const invoiceMonth = normalizeHeroMonth(_im);
+    if (!invoiceMonth) { _dropped.noInvoiceMonth.push({opty_id:sourceLeadId,rawInvoiceMonth:_im,leadCat:_lc}); continue; }
     // Lead Categorisation from NS sheet (e.g. "Direct Push / L1 Nurtured" or similar).
     // Do NOT use web_id/webid aliases — those are different concepts.
     // Fallback: Lead Categorisation from Lead Master (stored as lead.webId — "Direct Push / L1 Nurtured").
@@ -927,11 +929,12 @@ function parseHeroNonScopeRetailRows(raw, joinedRows) {
     // Same SourceLeadId with different invoice/model/category = separate retail records (kept).
     const allVals = Object.values(r).map(v=>String(v==null?'':v)).join('\x00');
     const dedupKey = allVals;
-    if (seen.has(dedupKey)) continue;
+    if (seen.has(dedupKey)) { _dropped.duplicate.push({opty_id:sourceLeadId,invoiceMonth,leadCat}); continue; }
     seen.add(dedupKey);
     rows.push({opty_id:sourceLeadId,source:lead.source,state:lead.state,ao:lead.ao,city:lead.city,region:lead.region,lead_month:lead.lead_month,lt:lead.lt,model:lead.model,invoiceMonth,leadCat,invoicedModel});
   }
-  window._heroNsUnmatched = _unmatched;
+  window._heroNsUnmatched = _dropped.noLeadMatch;
+  window._heroNsDropped = _dropped;
   return rows;
 }
 
