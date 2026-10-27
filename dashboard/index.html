@@ -1469,7 +1469,7 @@ function exportDetailedCsv(rawJoined, filters, RT, leadsMode, filename, monthOve
     'brand','model','verified_dealer','dealerId','oem_crm_id','City','State','AO','Zone',
     'Dealer_Name','enquiryId','utm_campaign','lead_type',...(viewerMode?[]:['Medium']),'Status_Name',
     'purchasedModel','performanceMonth','Call Type','Retail_Attribution_Date',
-    'L1_Verified_Date','Lead Categorization'];
+    'L1_Verified_Date','Lead Categorization','Booking Pipeline'];
   const aoa = [hdr];
   for (const r of rawJoined) {
     if (monthOverride) {
@@ -1502,6 +1502,7 @@ function exportDetailedCsv(rawJoined, filters, RT, leadsMode, filename, monthOve
     const statusName = r.statusName || '';
     const normalizedStatus = String(statusName).trim().toLowerCase();
     const isRA = normalizedStatus === 'retail attribution';
+    const isBP = BP_STATUS.has(normalizedStatus) ? 'Yes' : 'No';
     aoa.push([
       r.encryptMobile||'', r.idVerifiedLead||'', r.opty_id,
       fmtD(r.leadDate), r.lead_month, r.brand||'', r.model,
@@ -1513,7 +1514,7 @@ function exportDetailedCsv(rawJoined, filters, RT, leadsMode, filename, monthOve
       isRA ? (r.booking_month||'') : '',
       isRA ? (r.callType||'') : '',
       isRA ? fmtD(r.retailDate) : '',
-      r.l1VerifiedDate||'', r.webId||'Unknown',
+      r.l1VerifiedDate||'', r.webId||'Unknown', isBP,
     ]);
   }
   exportCsv(aoa, filename);
@@ -1533,7 +1534,7 @@ function exportLeadCategDetailedCsv(rawJoined, filters, RT, leadsMode, filename,
     'brand','model','verified_dealer','dealerId','oem_crm_id','City','State','AO','Zone',
     'Dealer_Name','enquiryId','utm_campaign','lead_type',...(viewerMode?[]:['Medium']),'Status_Name',
     'purchasedModel','performanceMonth','Call Type','Retail_Attribution_Date',
-    'L1_Verified_Date','Lead Categorization','Lead Categorisation'];
+    'L1_Verified_Date','Lead Categorization','Lead Categorisation','Booking Pipeline'];
   const aoa = [hdr];
   for (const r of rawJoined) {
     if (monthOverride) {
@@ -1549,6 +1550,7 @@ function exportLeadCategDetailedCsv(rawJoined, filters, RT, leadsMode, filename,
     if (!allCity){ if (cf  === FILTER_CLEARED) continue; if (!cf.has(r.city))    continue; }
     const statusName = r.statusName || '';
     const isRA = isRetailedLead(r);
+    const isBP = BP_STATUS.has(String(statusName).trim().toLowerCase()) ? 'Yes' : 'No';
     aoa.push([
       r.encryptMobile||'', r.idVerifiedLead||'', r.opty_id,
       fmtD(r.leadDate), r.lead_month, r.brand||'', r.model,
@@ -1559,7 +1561,7 @@ function exportLeadCategDetailedCsv(rawJoined, filters, RT, leadsMode, filename,
       isRA ? (r.booking_month||'') : '',
       isRA ? (r.callType||'') : '',
       isRA ? fmtD(r.retailDate) : '',
-      r.l1VerifiedDate||'', r.webId||'Unknown', r.webId || 'Unknown',
+      r.l1VerifiedDate||'', r.webId||'Unknown', r.webId || 'Unknown', isBP,
     ]);
   }
   exportCsv(aoa, filename);
