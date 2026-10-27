@@ -1470,14 +1470,12 @@ function exportDetailedCsv(rawJoined, filters, RT, leadsMode, filename, monthOve
   const allSt  = !stf || stf.size === 0;
   const allCity= !cf  || cf.size  === 0;
   const fmtD   = d => (d instanceof Date && !isNaN(d.getTime())) ? formatRetailDate(d) : '';
-  // Build opty_id → invoiced model(s) from NS retail rows (filtered to export month if set)
+  // Build opty_id → [invoiced model per transaction] — one entry per NS retail record (not deduplicated by model)
   const nsMap = new Map();
   for (const nr of (nsRetailRows||[])) {
-    if (!nr.invoicedModel) continue;
     if (monthOverride && nr.invoiceMonth !== monthOverride) continue;
-    const cur = nsMap.get(nr.opty_id);
-    if (cur) { if (!cur.includes(nr.invoicedModel)) cur.push(nr.invoicedModel); }
-    else nsMap.set(nr.opty_id, [nr.invoicedModel]);
+    if (!nsMap.has(nr.opty_id)) nsMap.set(nr.opty_id, []);
+    nsMap.get(nr.opty_id).push(nr.invoicedModel || '');
   }
   const hdr = ['encrypt_mobile_number','id_verified_lead','opty_id','Date','Lead_Month',
     'brand','model','verified_dealer','dealerId','oem_crm_id','City','State','AO','Zone',
@@ -1517,10 +1515,8 @@ function exportDetailedCsv(rawJoined, filters, RT, leadsMode, filename, monthOve
     const normalizedStatus = String(statusName).trim().toLowerCase();
     const isRA = normalizedStatus === 'retail attribution';
     const isBP = BP_STATUS.has(normalizedStatus) ? 'Yes' : 'No';
-    const nsModels = nsMap.get(r.opty_id)||[];
-    const isNS = nsModels.length > 0 ? 'Yes' : 'No';
-    const nsInvoicedModel = nsModels.join(' | ');
-    aoa.push([
+    const nsRecords = nsMap.get(r.opty_id);
+    const baseRow = [
       r.encryptMobile||'', r.idVerifiedLead||'', r.opty_id,
       fmtD(r.leadDate), r.lead_month, r.brand||'', r.model,
       r.verifiedDealer||'', r.dealerId||'', r.oemCrmId||'',
@@ -1531,8 +1527,13 @@ function exportDetailedCsv(rawJoined, filters, RT, leadsMode, filename, monthOve
       isRA ? (r.booking_month||'') : '',
       isRA ? (r.callType||'') : '',
       isRA ? fmtD(r.retailDate) : '',
-      r.l1VerifiedDate||'', r.webId||'Unknown', isBP, isNS, nsInvoicedModel,
-    ]);
+      r.l1VerifiedDate||'', r.webId||'Unknown', isBP,
+    ];
+    if (nsRecords && nsRecords.length > 0) {
+      for (const mdl of nsRecords) aoa.push([...baseRow, 'Yes', mdl]);
+    } else {
+      aoa.push([...baseRow, 'No', '']);
+    }
   }
   exportCsv(aoa, filename);
 }
@@ -1549,11 +1550,9 @@ function exportLeadCategDetailedCsv(rawJoined, filters, RT, leadsMode, filename,
   const fmtD   = d => (d instanceof Date && !isNaN(d.getTime())) ? formatRetailDate(d) : '';
   const nsMap = new Map();
   for (const nr of (nsRetailRows||[])) {
-    if (!nr.invoicedModel) continue;
     if (monthOverride && nr.invoiceMonth !== monthOverride) continue;
-    const cur = nsMap.get(nr.opty_id);
-    if (cur) { if (!cur.includes(nr.invoicedModel)) cur.push(nr.invoicedModel); }
-    else nsMap.set(nr.opty_id, [nr.invoicedModel]);
+    if (!nsMap.has(nr.opty_id)) nsMap.set(nr.opty_id, []);
+    nsMap.get(nr.opty_id).push(nr.invoicedModel || '');
   }
   const hdr = ['encrypt_mobile_number','id_verified_lead','opty_id','Date','Lead_Month',
     'brand','model','verified_dealer','dealerId','oem_crm_id','City','State','AO','Zone',
@@ -1576,10 +1575,8 @@ function exportLeadCategDetailedCsv(rawJoined, filters, RT, leadsMode, filename,
     const statusName = r.statusName || '';
     const isRA = isRetailedLead(r);
     const isBP = BP_STATUS.has(String(statusName).trim().toLowerCase()) ? 'Yes' : 'No';
-    const nsModelsLC = nsMap.get(r.opty_id)||[];
-    const isNSLC = nsModelsLC.length > 0 ? 'Yes' : 'No';
-    const nsInvoicedModelLC = nsModelsLC.join(' | ');
-    aoa.push([
+    const nsRecordsLC = nsMap.get(r.opty_id);
+    const baseRowLC = [
       r.encryptMobile||'', r.idVerifiedLead||'', r.opty_id,
       fmtD(r.leadDate), r.lead_month, r.brand||'', r.model,
       r.verifiedDealer||'', r.dealerId||'', r.oemCrmId||'',
@@ -1589,8 +1586,13 @@ function exportLeadCategDetailedCsv(rawJoined, filters, RT, leadsMode, filename,
       isRA ? (r.booking_month||'') : '',
       isRA ? (r.callType||'') : '',
       isRA ? fmtD(r.retailDate) : '',
-      r.l1VerifiedDate||'', r.webId||'Unknown', r.webId || 'Unknown', isBP, isNSLC, nsInvoicedModelLC,
-    ]);
+      r.l1VerifiedDate||'', r.webId||'Unknown', r.webId || 'Unknown', isBP,
+    ];
+    if (nsRecordsLC && nsRecordsLC.length > 0) {
+      for (const mdl of nsRecordsLC) aoa.push([...baseRowLC, 'Yes', mdl]);
+    } else {
+      aoa.push([...baseRowLC, 'No', '']);
+    }
   }
   exportCsv(aoa, filename);
 }
