@@ -1460,7 +1460,7 @@ function isRetailedLead(r) {
   return d >= 0 && d <= 2;
 }
 
-function exportDetailedCsv(rawJoined, filters, RT, leadsMode, filename, monthOverride, viewerMode) {
+function exportDetailedCsv(rawJoined, filters, RT, leadsMode, filename, monthOverride, viewerMode, nsRetailRows) {
   if (!rawJoined || !rawJoined.length) return;
   const { months:mf, sources:sf, leadTypes:ltf, models:mdf, states:stf, cities:cf } = filters;
   const allM   = !mf  || mf.size  === 0;
@@ -1470,11 +1470,20 @@ function exportDetailedCsv(rawJoined, filters, RT, leadsMode, filename, monthOve
   const allSt  = !stf || stf.size === 0;
   const allCity= !cf  || cf.size  === 0;
   const fmtD   = d => (d instanceof Date && !isNaN(d.getTime())) ? formatRetailDate(d) : '';
+  // Build opty_id → invoiced model(s) from NS retail rows (filtered to export month if set)
+  const nsMap = new Map();
+  for (const nr of (nsRetailRows||[])) {
+    if (!nr.invoicedModel) continue;
+    if (monthOverride && nr.invoiceMonth !== monthOverride) continue;
+    const cur = nsMap.get(nr.opty_id);
+    if (cur) { if (!cur.includes(nr.invoicedModel)) cur.push(nr.invoicedModel); }
+    else nsMap.set(nr.opty_id, [nr.invoicedModel]);
+  }
   const hdr = ['encrypt_mobile_number','id_verified_lead','opty_id','Date','Lead_Month',
     'brand','model','verified_dealer','dealerId','oem_crm_id','City','State','AO','Zone',
     'Dealer_Name','enquiryId','utm_campaign','lead_type',...(viewerMode?[]:['Medium']),'Status_Name',
     'purchasedModel','performanceMonth','Call Type','Retail_Attribution_Date',
-    'L1_Verified_Date','Lead Categorization','Booking Pipeline'];
+    'L1_Verified_Date','Lead Categorization','Booking Pipeline','NS Invoiced Model'];
   const aoa = [hdr];
   for (const r of rawJoined) {
     if (monthOverride) {
@@ -1508,6 +1517,7 @@ function exportDetailedCsv(rawJoined, filters, RT, leadsMode, filename, monthOve
     const normalizedStatus = String(statusName).trim().toLowerCase();
     const isRA = normalizedStatus === 'retail attribution';
     const isBP = BP_STATUS.has(normalizedStatus) ? 'Yes' : 'No';
+    const nsInvoicedModel = (nsMap.get(r.opty_id)||[]).join(' | ');
     aoa.push([
       r.encryptMobile||'', r.idVerifiedLead||'', r.opty_id,
       fmtD(r.leadDate), r.lead_month, r.brand||'', r.model,
@@ -1519,13 +1529,13 @@ function exportDetailedCsv(rawJoined, filters, RT, leadsMode, filename, monthOve
       isRA ? (r.booking_month||'') : '',
       isRA ? (r.callType||'') : '',
       isRA ? fmtD(r.retailDate) : '',
-      r.l1VerifiedDate||'', r.webId||'Unknown', isBP,
+      r.l1VerifiedDate||'', r.webId||'Unknown', isBP, nsInvoicedModel,
     ]);
   }
   exportCsv(aoa, filename);
 }
 
-function exportLeadCategDetailedCsv(rawJoined, filters, RT, leadsMode, filename, monthOverride, viewerMode) {
+function exportLeadCategDetailedCsv(rawJoined, filters, RT, leadsMode, filename, monthOverride, viewerMode, nsRetailRows) {
   if (!rawJoined || !rawJoined.length) return;
   const { months:mf, sources:sf, leadTypes:ltf, models:mdf, states:stf, cities:cf } = filters;
   const allM   = !mf  || mf.size  === 0;
@@ -1535,11 +1545,19 @@ function exportLeadCategDetailedCsv(rawJoined, filters, RT, leadsMode, filename,
   const allSt  = !stf || stf.size === 0;
   const allCity= !cf  || cf.size  === 0;
   const fmtD   = d => (d instanceof Date && !isNaN(d.getTime())) ? formatRetailDate(d) : '';
+  const nsMap = new Map();
+  for (const nr of (nsRetailRows||[])) {
+    if (!nr.invoicedModel) continue;
+    if (monthOverride && nr.invoiceMonth !== monthOverride) continue;
+    const cur = nsMap.get(nr.opty_id);
+    if (cur) { if (!cur.includes(nr.invoicedModel)) cur.push(nr.invoicedModel); }
+    else nsMap.set(nr.opty_id, [nr.invoicedModel]);
+  }
   const hdr = ['encrypt_mobile_number','id_verified_lead','opty_id','Date','Lead_Month',
     'brand','model','verified_dealer','dealerId','oem_crm_id','City','State','AO','Zone',
     'Dealer_Name','enquiryId','utm_campaign','lead_type',...(viewerMode?[]:['Medium']),'Status_Name',
     'purchasedModel','performanceMonth','Call Type','Retail_Attribution_Date',
-    'L1_Verified_Date','Lead Categorization','Lead Categorisation','Booking Pipeline'];
+    'L1_Verified_Date','Lead Categorization','Lead Categorisation','Booking Pipeline','NS Invoiced Model'];
   const aoa = [hdr];
   for (const r of rawJoined) {
     if (monthOverride) {
@@ -1556,6 +1574,7 @@ function exportLeadCategDetailedCsv(rawJoined, filters, RT, leadsMode, filename,
     const statusName = r.statusName || '';
     const isRA = isRetailedLead(r);
     const isBP = BP_STATUS.has(String(statusName).trim().toLowerCase()) ? 'Yes' : 'No';
+    const nsInvoicedModel = (nsMap.get(r.opty_id)||[]).join(' | ');
     aoa.push([
       r.encryptMobile||'', r.idVerifiedLead||'', r.opty_id,
       fmtD(r.leadDate), r.lead_month, r.brand||'', r.model,
@@ -1566,7 +1585,7 @@ function exportLeadCategDetailedCsv(rawJoined, filters, RT, leadsMode, filename,
       isRA ? (r.booking_month||'') : '',
       isRA ? (r.callType||'') : '',
       isRA ? fmtD(r.retailDate) : '',
-      r.l1VerifiedDate||'', r.webId||'Unknown', r.webId || 'Unknown', isBP,
+      r.l1VerifiedDate||'', r.webId||'Unknown', r.webId || 'Unknown', isBP, nsInvoicedModel,
     ]);
   }
   exportCsv(aoa, filename);
@@ -2910,7 +2929,7 @@ const WebIdTab = React.memo(function WebIdTab({ data, filters, months, RT, onDet
             aoa.push(['Grand Total',gL,gR,100,gL>0?+(gR/gL*100).toFixed(1):0,gNRW,gBPW]);
             exportCsv(aoa,'Hero_WebID_'+M.replace(/[^a-z0-9]/gi,'_')+'.csv');
           }}),
-          rawJoined && ce(DetailedCsvBtn, { onClick:()=>exportLeadCategDetailedCsv(rawJoined,filters,RT,leadsMode,'Hero_LeadCateg_Detailed_'+M.replace(/[^a-z0-9]/gi,'_')+'.csv',M,viewerMode) })
+          rawJoined && ce(DetailedCsvBtn, { onClick:()=>exportLeadCategDetailedCsv(rawJoined,filters,RT,leadsMode,'Hero_LeadCateg_Detailed_'+M.replace(/[^a-z0-9]/gi,'_')+'.csv',M,viewerMode,nsRetailRows) })
         )
       ),
       ce('div', { className:'scroll-x', ref:addScrollRef, onScroll:onTableScroll },
@@ -3034,7 +3053,7 @@ const WebIdTab = React.memo(function WebIdTab({ data, filters, months, RT, onDet
             aoa.push(['Grand Total',crossMonthTotals.l,crossMonthTotals.r,100,+crossMonthTotals.l2r.toFixed(1),crossMonthTotals.gNRW,crossMonthTotals.gBPW]);
             exportCsv(aoa,'Hero_WebID_AllMonths.csv');
           }}),
-          rawJoined && ce(DetailedCsvBtn, { onClick:()=>exportLeadCategDetailedCsv(rawJoined,filters,RT,leadsMode,'Hero_LeadCateg_Detailed_AllMonths.csv',null,viewerMode) })
+          rawJoined && ce(DetailedCsvBtn, { onClick:()=>exportLeadCategDetailedCsv(rawJoined,filters,RT,leadsMode,'Hero_LeadCateg_Detailed_AllMonths.csv',null,viewerMode,nsRetailRows) })
         )
       ),
       ce('div', { className:'scroll-x', ref:addScrollRef, onScroll:onTableScroll },
@@ -6450,8 +6469,8 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen,upgradeRequested,onRequ
 
   const onDetailedCsv=useCallback((tabName,month)=>{
     const suffix=month?month.replace(/[^a-z0-9]/gi,'_'):'AllMonths';
-    exportDetailedCsv(rawJoined,filters,RT,leadsMode,'Hero_'+tabName+'_Detailed_'+suffix+'.csv',month||null,viewerMode);
-  },[rawJoined,filters,RT,leadsMode,viewerMode]);
+    exportDetailedCsv(rawJoined,filters,RT,leadsMode,'Hero_'+tabName+'_Detailed_'+suffix+'.csv',month||null,viewerMode,nsRetailRows);
+  },[rawJoined,filters,RT,leadsMode,viewerMode,nsRetailRows]);
 
   const effectiveRawJoined=l1vMode?rawJoinedL1V:(rawJoined||[]);
   const effectiveRawData=(l1vMode&&dataL1V)?dataL1V:data;
