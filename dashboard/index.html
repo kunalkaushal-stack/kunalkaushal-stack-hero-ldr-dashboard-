@@ -1483,6 +1483,32 @@ function exportDetailedCsv(rawJoined, filters, RT, leadsMode, filename, monthOve
     'purchasedModel','performanceMonth','Call Type','Retail_Attribution_Date',
     'L1_Verified_Date','Lead Categorization','Booking Pipeline','Non-Scope','NS Invoiced Model'];
   const aoa = [hdr];
+  const includedIds = new Set();
+  const leadLookup = new Map();
+  for (const r of rawJoined) leadLookup.set(r.opty_id, r);
+
+  function buildBaseRow(r) {
+    const statusName = r.statusName || '';
+    const isRA = String(statusName).trim().toLowerCase() === 'retail attribution';
+    const isBP = BP_STATUS.has(String(statusName).trim().toLowerCase()) ? 'Yes' : 'No';
+    return {
+      isBP, isRA, statusName,
+      cols: [
+        r.encryptMobile||'', r.idVerifiedLead||'', r.opty_id,
+        fmtD(r.leadDate), r.lead_month, r.brand||'', r.model,
+        r.verifiedDealer||'', r.dealerId||'', r.oemCrmId||'',
+        r.city, r.state, r.ao||'', r.region||'', r.dealerName||'', r.enquiryId||'', r.utmCampaign||'',
+        r.lt, ...(viewerMode?[]:[r.source]),
+        statusName,
+        isRA ? (r.purchasedModel||'') : '',
+        isRA ? (r.booking_month||'') : '',
+        isRA ? (r.callType||'') : '',
+        isRA ? fmtD(r.retailDate) : '',
+        r.l1VerifiedDate||'', r.webId||'Unknown', isBP,
+      ],
+    };
+  }
+
   for (const r of rawJoined) {
     if (monthOverride) {
       if (r.lead_month !== monthOverride) continue;
@@ -1510,29 +1536,26 @@ function exportDetailedCsv(rawJoined, filters, RT, leadsMode, filename, monthOve
       if (cf === FILTER_CLEARED) continue;
       if (!cf.has(r.city)) continue;
     }
-    // Status_Name comes directly from Lead Master; gates columns 19-22
-    const statusName = r.statusName || '';
-    const normalizedStatus = String(statusName).trim().toLowerCase();
-    const isRA = normalizedStatus === 'retail attribution';
-    const isBP = BP_STATUS.has(normalizedStatus) ? 'Yes' : 'No';
+    includedIds.add(r.opty_id);
+    const { cols } = buildBaseRow(r);
     const nsRecords = nsMap.get(r.opty_id);
-    const baseRow = [
-      r.encryptMobile||'', r.idVerifiedLead||'', r.opty_id,
-      fmtD(r.leadDate), r.lead_month, r.brand||'', r.model,
-      r.verifiedDealer||'', r.dealerId||'', r.oemCrmId||'',
-      r.city, r.state, r.ao||'', r.region||'', r.dealerName||'', r.enquiryId||'', r.utmCampaign||'',
-      r.lt, ...(viewerMode?[]:[r.source]),
-      statusName,
-      isRA ? (r.purchasedModel||'') : '',
-      isRA ? (r.booking_month||'') : '',
-      isRA ? (r.callType||'') : '',
-      isRA ? fmtD(r.retailDate) : '',
-      r.l1VerifiedDate||'', r.webId||'Unknown', isBP,
-    ];
     if (nsRecords && nsRecords.length > 0) {
-      for (const mdl of nsRecords) aoa.push([...baseRow, 'Yes', mdl]);
+      for (const mdl of nsRecords) aoa.push([...cols, 'Yes', mdl]);
     } else {
-      aoa.push([...baseRow, 'No', '']);
+      aoa.push([...cols, 'No', '']);
+    }
+  }
+  // Also include NS retail transactions for leads created in other months (Aug/Sep)
+  // whose invoiceMonth matches the export month — these are counted in the dashboard
+  // but excluded from the main loop above.
+  if (monthOverride) {
+    for (const nr of (nsRetailRows||[])) {
+      if (nr.invoiceMonth !== monthOverride) continue;
+      if (includedIds.has(nr.opty_id)) continue;
+      const r = leadLookup.get(nr.opty_id);
+      if (!r) continue;
+      const { cols } = buildBaseRow(r);
+      aoa.push([...cols, 'Yes', nr.invoicedModel || '']);
     }
   }
   exportCsv(aoa, filename);
@@ -1560,6 +1583,28 @@ function exportLeadCategDetailedCsv(rawJoined, filters, RT, leadsMode, filename,
     'purchasedModel','performanceMonth','Call Type','Retail_Attribution_Date',
     'L1_Verified_Date','Lead Categorization','Lead Categorisation','Booking Pipeline','Non-Scope','NS Invoiced Model'];
   const aoa = [hdr];
+  const includedIdsLC = new Set();
+  const leadLookupLC = new Map();
+  for (const r of rawJoined) leadLookupLC.set(r.opty_id, r);
+
+  function buildBaseRowLC(r) {
+    const statusName = r.statusName || '';
+    const isRA = isRetailedLead(r);
+    const isBP = BP_STATUS.has(String(statusName).trim().toLowerCase()) ? 'Yes' : 'No';
+    return [
+      r.encryptMobile||'', r.idVerifiedLead||'', r.opty_id,
+      fmtD(r.leadDate), r.lead_month, r.brand||'', r.model,
+      r.verifiedDealer||'', r.dealerId||'', r.oemCrmId||'',
+      r.city, r.state, r.ao||'', r.region||'', r.dealerName||'', r.enquiryId||'', r.utmCampaign||'',
+      r.lt, ...(viewerMode?[]:[r.source]), statusName,
+      isRA ? (r.purchasedModel||'') : '',
+      isRA ? (r.booking_month||'') : '',
+      isRA ? (r.callType||'') : '',
+      isRA ? fmtD(r.retailDate) : '',
+      r.l1VerifiedDate||'', r.webId||'Unknown', r.webId || 'Unknown', isBP,
+    ];
+  }
+
   for (const r of rawJoined) {
     if (monthOverride) {
       if (r.lead_month !== monthOverride) continue;
@@ -1572,26 +1617,23 @@ function exportLeadCategDetailedCsv(rawJoined, filters, RT, leadsMode, filename,
     if (!allMdl) { if (mdf === FILTER_CLEARED) continue; if (!mdf.has(r.model))  continue; }
     if (!allSt)  { if (stf === FILTER_CLEARED) continue; if (!stf.has(r.state))  continue; }
     if (!allCity){ if (cf  === FILTER_CLEARED) continue; if (!cf.has(r.city))    continue; }
-    const statusName = r.statusName || '';
-    const isRA = isRetailedLead(r);
-    const isBP = BP_STATUS.has(String(statusName).trim().toLowerCase()) ? 'Yes' : 'No';
+    includedIdsLC.add(r.opty_id);
+    const baseRowLC = buildBaseRowLC(r);
     const nsRecordsLC = nsMap.get(r.opty_id);
-    const baseRowLC = [
-      r.encryptMobile||'', r.idVerifiedLead||'', r.opty_id,
-      fmtD(r.leadDate), r.lead_month, r.brand||'', r.model,
-      r.verifiedDealer||'', r.dealerId||'', r.oemCrmId||'',
-      r.city, r.state, r.ao||'', r.region||'', r.dealerName||'', r.enquiryId||'', r.utmCampaign||'',
-      r.lt, ...(viewerMode?[]:[r.source]), statusName,
-      isRA ? (r.purchasedModel||'') : '',
-      isRA ? (r.booking_month||'') : '',
-      isRA ? (r.callType||'') : '',
-      isRA ? fmtD(r.retailDate) : '',
-      r.l1VerifiedDate||'', r.webId||'Unknown', r.webId || 'Unknown', isBP,
-    ];
     if (nsRecordsLC && nsRecordsLC.length > 0) {
       for (const mdl of nsRecordsLC) aoa.push([...baseRowLC, 'Yes', mdl]);
     } else {
       aoa.push([...baseRowLC, 'No', '']);
+    }
+  }
+  if (monthOverride) {
+    for (const nr of (nsRetailRows||[])) {
+      if (nr.invoiceMonth !== monthOverride) continue;
+      if (includedIdsLC.has(nr.opty_id)) continue;
+      const r = leadLookupLC.get(nr.opty_id);
+      if (!r) continue;
+      const baseRowLC = buildBaseRowLC(r);
+      aoa.push([...baseRowLC, 'Yes', nr.invoicedModel || '']);
     }
   }
   exportCsv(aoa, filename);
