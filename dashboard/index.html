@@ -1418,6 +1418,11 @@ function ExportBtn({ onClick }) {
 }
 
 function exportCsv(aoa, filename) {
+  if (window._heroExportXlsx && window.XLSX) {
+    const base = filename.replace(/\.csv$/i, '');
+    exportXlsx({Sheet1: aoa}, base);
+    return;
+  }
   const csv = '\uFEFF' + aoa.map(row =>
     row.map(v => {
       const s = v == null ? '' : String(v);
@@ -3163,13 +3168,10 @@ const GeoAndDealerTab = React.memo(function GeoAndDealerTab({ data, filters, mon
   const toggleSort = col => { if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc'); else { setSortCol(col); setSortDir('desc'); } };
   const arrow = col => sortCol === col ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
 
-  const exportCsv = () => {
+  const exportCsvGeo = () => {
     const hdr = ['OEM CRM ID','Dealer','AO','State','Region','City','Leads','Retail','Conv%','WIP','Direct Push','L1 Nurtured','Lost'];
     const aoa = [hdr, ...sortedRows.map(r => [r.oemCrmId,r.dealer,r.ao,r.state,r.region,r.city||'',r.leads,r.retail,pct(r.retail,r.leads),r.wip,r.dp,r.l1,r.lost])];
-    const csv = aoa.map(row => row.map(v => '"' + String(v).replace(/"/g,'""') + '"').join(',')).join('\n');
-    const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob); const a = document.createElement('a');
-    a.href = url; a.download = 'Hero_Geo_Dealer_AllMonths.csv'; a.click(); URL.revokeObjectURL(url);
+    exportCsv(aoa, 'Hero_Geo_Dealer_AllMonths.csv');
   };
 
   const thStyle = (align) => ({
@@ -3225,7 +3227,7 @@ const GeoAndDealerTab = React.memo(function GeoAndDealerTab({ data, filters, mon
           style:{ padding:'7px 11px', border:'1px solid #e2e8f0', borderRadius:6, background:'#f1f5f9', cursor:'pointer', fontSize:12, color:'#64748b', whiteSpace:'nowrap' }
         }, '✕ Clear'),
         !clientMode && ce('button', {
-          onClick:exportCsv,
+          onClick:exportCsvGeo,
           style:{ padding:'7px 13px', background:'#9A3412', color:'#fff', border:'none', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600, whiteSpace:'nowrap' }
         }, 'Export CSV')
       ),
@@ -6068,6 +6070,7 @@ const TABS = [
 function App({fbUser,role,presence,onSignOut,onAdminOpen,upgradeRequested,onRequestUpgrade}){
   const viewerMode=role==='viewer';
   window._heroViewerMode=viewerMode;
+  window._heroExportXlsx=(role==='admin'||role==='full');
   const clientMode=role==='client';
   const [data,setData]=useState(null);
   const [rawJoined,setRawJoined]=useState(null);
