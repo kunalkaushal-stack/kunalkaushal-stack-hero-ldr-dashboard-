@@ -4727,9 +4727,12 @@ const DispersionTab = React.memo(function DispersionTab({ data, filters, months,
       const nsKey    = (nr.invoicedModel||'').toLowerCase().trim();
       const nsCat    = DISP_NS_MODEL_CAT[nsKey];
       const isSame   = enqCat !== undefined && nsCat !== undefined && nsCat === enqCat;
-      if (!byModel.has(enqModel)) byModel.set(enqModel, { same: 0, cross: 0 });
+      if (!byModel.has(enqModel)) byModel.set(enqModel, { same: 0, cross: 0, models: new Map() });
       const e = byModel.get(enqModel);
       if (isSame) e.same++; else e.cross++;
+      const nm = (nr.invoicedModel||'').trim() || '(blank)';
+      const cur = e.models.get(nm) || { cnt: 0, isSame };
+      cur.cnt++; e.models.set(nm, cur);
     }
     return byModel;
   }
@@ -4750,6 +4753,7 @@ const DispersionTab = React.memo(function DispersionTab({ data, filters, months,
         total: v.same + v.cross,
         disp: (v.same + v.cross) > 0 ? v.cross / (v.same + v.cross) * 100 : 0,
         nsSame, nsCross, nsTotal, nsDisp,
+        nsModels: ns ? [...ns.models.entries()].map(([name, x]) => ({ name, cnt: x.cnt, isSame: x.isSame })).sort((a, b) => b.cnt - a.cnt) : [],
       };
     }).filter(r => r.total > 0).sort((a, b) => b.total - a.total);
     if (rows.length === 0) return null;
@@ -4774,14 +4778,14 @@ const DispersionTab = React.memo(function DispersionTab({ data, filters, months,
         ce('div',{style:{display:'flex',gap:0}},
           ce(CsvBtn, { onClick:() => {
             const hdr = ['Enquired Model','WS Same','WS Cross','WS Total','Within Scope Disp%',
-                         'OOS Same','OOS Cross','OOS Total','Out of Scope Disp%'];
+                         'Out of Scope Sale','Out of Scope Disp%'];
             const aoa = [hdr];
             rows.forEach(r => aoa.push([
               r.model, r.same, r.cross, r.total, +r.disp.toFixed(2),
-              r.nsSame, r.nsCross, r.nsTotal, +r.nsDisp.toFixed(2),
+              r.nsTotal, +r.nsDisp.toFixed(2),
             ]));
             aoa.push(['Σ Grand Total', grandSame, grandCross, grandTotal, +grandDisp.toFixed(2),
-                      nsGrandSame, nsGrandCross, nsGrandTotal, +nsGrandDisp.toFixed(2)]);
+                      nsGrandTotal, +nsGrandDisp.toFixed(2)]);
             exportCsv(aoa, csvName);
           }}),
           onDetailedCsv && ce(DetailedCsvBtn, { onClick:()=>onDetailedCsv('Dispersion', dispMonth||null) })
@@ -4796,9 +4800,8 @@ const DispersionTab = React.memo(function DispersionTab({ data, filters, months,
               ce('th', { style:{color:'#fff'} }, 'WS Cross ✗'),
               ce('th', null, 'WS Total'),
               ce('th', { style:{minWidth:180} }, 'Within Scope Disp%'),
-              ce('th', { style:oosTh({...sep, minWidth:60}) }, 'OOS Same ✓'),
-              ce('th', { style:oosTh({}) }, 'OOS Cross ✗'),
-              ce('th', { style:oosTh({}) }, 'OOS Total'),
+              ce('th', { style:oosTh({...sep, minWidth:90}) }, 'Out of Scope Sale'),
+              ce('th', { style:oosTh({minWidth:170}) }, 'Invoiced Model'),
               ce('th', { style:oosTh({minWidth:180}) }, 'Out of Scope Disp%'),
             )
           ),
@@ -4843,9 +4846,8 @@ const DispersionTab = React.memo(function DispersionTab({ data, filters, months,
                     )
                   )
                 ),
-                ce('td', { style:{...sep,color:'#6D28D9',fontWeight:700} }, r.nsTotal > 0 ? Nf(r.nsSame) : '—'),
-                ce('td', { style:{color:'#7C3AED',fontWeight:700} }, r.nsTotal > 0 ? Nf(r.nsCross) : '—'),
-                ce('td', { style:{fontWeight:600} }, r.nsTotal > 0 ? Nf(r.nsTotal) : '—'),
+                ce('td', { style:{...sep,color:'#6D28D9',fontWeight:700} }, r.nsTotal > 0 ? Nf(r.nsTotal) : '—'),
+                ce('td', null),
                 ce('td', null, r.nsTotal > 0
                   ? ce('div', { style:{display:'flex',alignItems:'center',gap:8} },
                       ce('div', { style:{flex:1,background:'#F1F5F9',borderRadius:4,height:8,overflow:'hidden'} },
@@ -4861,24 +4863,30 @@ const DispersionTab = React.memo(function DispersionTab({ data, filters, months,
 
               if (!isExpanded || childRows.length === 0) return [parentRow];
 
-              const childTrs = childRows.map((c, ci) =>
-                ce('tr', { key: 'c-' + r.mi + '-' + ci, style:{background:'var(--drill-bg,#F8FAFC)'} },
+              const childN = Math.max(childRows.length, r.nsModels.length);
+              const childTrs = Array.from({length: childN}, (_, ci) => {
+                const c = childRows[ci];
+                const nm = r.nsModels[ci];
+                return ce('tr', { key: 'c-' + r.mi + '-' + ci, style:{background:'var(--drill-bg,#F8FAFC)'} },
                   ce('td', { className:'label', style:{paddingLeft:32,fontSize:12,color:'#475569'} },
-                    ce('span', { style:{color:'#94A3B8',marginRight:5} }, '↳'),
-                    c.purModel || '(blank)'
+                    c && ce('span', { style:{color:'#94A3B8',marginRight:5} }, '↳'),
+                    c ? (c.purModel || '(blank)') : ''
                   ),
-                  ce('td', { style:{fontSize:12,fontWeight:600,color:'#334155'} }, Nf(c.cnt)),
-                  ce('td', { style:{fontSize:12,fontWeight:700,color: c.isSame ? '#16A34A' : '#DC2626'} },
-                    c.isSame ? 'Same' : 'Cross'
+                  ce('td', { style:{fontSize:12,fontWeight:600,color:'#334155'} }, c ? Nf(c.cnt) : ''),
+                  ce('td', { style:{fontSize:12,fontWeight:700,color: c && c.isSame ? '#16A34A' : '#DC2626'} },
+                    c ? (c.isSame ? 'Same' : 'Cross') : ''
                   ),
                   ce('td', { style:{fontSize:12,fontWeight:600,color:'#1E40AF',fontFamily:'DM Mono,monospace'} },
-                    (c.cnt / r.total * 100).toFixed(1) + '%'
+                    c ? (c.cnt / r.total * 100).toFixed(1) + '%' : ''
                   ),
                   ce('td', null),
-                  ce('td', { style:sep }),
-                  ce('td', null), ce('td', null), ce('td', null)
-                )
-              );
+                  ce('td', { style:{...sep,fontSize:12,fontWeight:600,color:'#6D28D9'} }, nm ? Nf(nm.cnt) : ''),
+                  ce('td', { style:{fontSize:12,color: nm && nm.isSame ? '#16A34A' : '#475569'} }, nm ? nm.name : ''),
+                  ce('td', { style:{fontSize:12,fontWeight:600,color:'#6D28D9',fontFamily:'DM Mono,monospace'} },
+                    nm ? (nm.cnt / r.nsTotal * 100).toFixed(1) + '%' : ''
+                  )
+                );
+              });
 
               const subtotalTr = ce('tr', { key: 'st-' + r.mi, style:{background:'var(--drill-sub,#EFF6FF)',borderTop:'1px solid #BFDBFE'} },
                 ce('td', { className:'label', style:{paddingLeft:32,fontSize:12,fontWeight:700,color:'#1E40AF'} }, 'Total'),
@@ -4886,8 +4894,9 @@ const DispersionTab = React.memo(function DispersionTab({ data, filters, months,
                 ce('td', null),
                 ce('td', { style:{fontSize:12,fontWeight:700,color:'#1E40AF',fontFamily:'DM Mono,monospace'} }, '100.0%'),
                 ce('td', null),
-                ce('td', { style:sep }),
-                ce('td', null), ce('td', null), ce('td', null)
+                ce('td', { style:{...sep,fontSize:12,fontWeight:700,color:'#6D28D9'} }, r.nsTotal > 0 ? Nf(r.nsTotal) : ''),
+                ce('td', null),
+                ce('td', { style:{fontSize:12,fontWeight:700,color:'#6D28D9',fontFamily:'DM Mono,monospace'} }, r.nsTotal > 0 ? '100.0%' : '')
               );
 
               return [parentRow, ...childTrs, subtotalTr];
@@ -4898,9 +4907,8 @@ const DispersionTab = React.memo(function DispersionTab({ data, filters, months,
               ce('td', { style:{color:'#DC2626',fontWeight:700} }, Nf(grandCross)),
               ce('td', { style:{fontWeight:700} }, Nf(grandTotal)),
               ce('td', { style:{fontWeight:700,color:'#1A237E'} }, grandDisp.toFixed(1)+'%'),
-              ce('td', { style:{...sep,color:'#6D28D9',fontWeight:700} }, Nf(nsGrandSame)),
-              ce('td', { style:{color:'#7C3AED',fontWeight:700} }, Nf(nsGrandCross)),
-              ce('td', { style:{fontWeight:700} }, Nf(nsGrandTotal)),
+              ce('td', { style:{...sep,color:'#6D28D9',fontWeight:700} }, Nf(nsGrandTotal)),
+              ce('td', null),
               ce('td', { style:{fontWeight:700,color:'#6D28D9'} }, nsGrandDisp.toFixed(1)+'%')
             )
           )
