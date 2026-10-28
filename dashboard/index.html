@@ -1549,14 +1549,27 @@ function exportDetailedCsv(rawJoined, filters, RT, leadsMode, filename, monthOve
   // whose invoiceMonth matches the export month — these are counted in the dashboard
   // but excluded from the main loop above.
   if (monthOverride) {
+    let _d2total=0,_d2inIncluded=0,_d2noLead=0,_d2added=0;
     for (const nr of (nsRetailRows||[])) {
       if (nr.invoiceMonth !== monthOverride) continue;
-      if (includedIds.has(nr.opty_id)) continue;
+      _d2total++;
+      if (includedIds.has(nr.opty_id)) { _d2inIncluded++; continue; }
       const r = leadLookup.get(nr.opty_id);
-      if (!r) continue;
+      if (!r) { _d2noLead++; continue; }
       const { cols } = buildBaseRow(r);
       aoa.push([...cols, 'Yes', nr.invoicedModel || '']);
+      _d2added++;
     }
+    window._heroExportDebug = {
+      monthOverride,
+      nsRetailRowsTotal: (nsRetailRows||[]).length,
+      nsInMonth: _d2total,
+      nsInMonthAlreadyInMainLoop: _d2inIncluded,
+      nsInMonthNoLeadInRawJoined: _d2noLead,
+      nsInMonthAddedBySecondPass: _d2added,
+      mainLoopNsYesRows: aoa.filter(r=>r[r.length-2]==='Yes').length - _d2added,
+    };
+    console.log('[Hero Export Debug]', window._heroExportDebug);
   }
   exportCsv(aoa, filename);
 }
