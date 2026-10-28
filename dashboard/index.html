@@ -4589,8 +4589,39 @@ const DISP_LM_CAT = {
   'Hero Xtreme 160R 4V':'Hero Xtreme 160R Family',
   'Hero Xtreme 250R':'Hero Xtreme 250R',
 };
+// NS (Out-of-Scope) invoiced model name (lowercase) → dispersion family
+// CPS-family entries use the SAME string as DISP_LM_CAT so SAME detection works.
+const DISP_NS_MODEL_CAT = (() => {
+  const m = {};
+  const s = (keys, cat) => keys.forEach(k => { m[k.toLowerCase().trim()] = cat; });
+  // Mass-market models (unique to NS — no match in DISP_LM_CAT → always CROSS)
+  s(['splendor plus','splendor +','splendor+','hero splendor plus','hero splendor +'],'NS Splendor Plus Family');
+  s(['splendor+ xtec','splendor xtec','splendor+ xtec 2.0','splendor xtec 2.0','hero splendor+ xtec'],'NS Splendor Plus Family');
+  s(['hf deluxe','hf 100','hf 110','hero hf deluxe','hf-deluxe'],'NS HF Deluxe Family');
+  s(['passion pro','passion pro 110','hero passion pro','passion pro 125'],'NS Passion Pro Family');
+  s(['cd 110 dream','cd110 dream','cd dream','cd 100'],'NS CD Dream Family');
+  // CPS-family models that may also appear in NS sheet — match DISP_LM_CAT → can be SAME
+  s(['destini 110','hero destini 110'],'Hero Destini Family');
+  s(['destini 125','hero destini 125'],'Hero Destini Family');
+  s(['destini prime','hero destini prime','destini 125 xtec'],'Hero Destini Family');
+  s(['glamour','hero glamour','glamour i3s','glamour xtec'],'Hero Glamour Family');
+  s(['glamour x 125','hero glamour x 125','glamour x125'],'Hero Glamour Family');
+  s(['karizma xmr','hero karizma xmr','karizma'],'Hero Karizma XMR');
+  s(['passion plus','hero passion plus','passion plus xtec'],'Hero Passion Plus');
+  s(['pleasure plus','hero pleasure plus','pleasure plus 110'],'Hero Pleasure Plus');
+  s(['super splendor','hero super splendor'],'Hero Super Splendor Family');
+  s(['super splendor xtec','hero super splendor xtec','super splendor xtec 2.0'],'Hero Super Splendor Family');
+  s(['xoom 110','hero xoom 110'],'Hero Xoom Family');
+  s(['xoom 125','hero xoom 125'],'Hero Xoom Family');
+  s(['xpulse 210','hero xpulse 210','xpulse 200','xpulse 200 4v'],'Hero XPulse Family');
+  s(['xtreme 125r','hero xtreme 125r'],'Hero Xtreme 125R');
+  s(['xtreme 160r','hero xtreme 160r'],'Hero Xtreme 160R Family');
+  s(['xtreme 160r 4v','hero xtreme 160r 4v'],'Hero Xtreme 160R Family');
+  s(['xtreme 250r','hero xtreme 250r'],'Hero Xtreme 250R');
+  return m;
+})();
 
-const DispersionTab = React.memo(function DispersionTab({ data, filters, months, RT, onDetailedCsv }) {
+const DispersionTab = React.memo(function DispersionTab({ data, filters, months, RT, onDetailedCsv, nsRetailRows }) {
   const { addScrollRef, onTableScroll } = useSyncedScroll();
   const { maps, rdm, rdmx } = data;
   if (!rdm) return ce('div',{className:'fade-up'},ce('div',{className:'card',style:{padding:32,textAlign:'center',color:'#94A3B8'}},'Retail Dispersion data not yet available. Please sync data.'));
@@ -4676,32 +4707,81 @@ const DispersionTab = React.memo(function DispersionTab({ data, filters, months,
     return out;
   }
 
+  // Build Out-of-Scope (NS retail) dispersion map for a given set of lead_months
+  function buildNsDispersion(monthSet) {
+    const byModel = new Map();
+    const allSrc = !filters.sources   || filters.sources.size   === 0;
+    const allSt  = !filters.states    || filters.states.size    === 0;
+    const allCi  = !filters.cities    || filters.cities.size    === 0;
+    const allLt  = !filters.leadTypes || filters.leadTypes.size === 0;
+    const allMdl = !filters.models    || filters.models.size    === 0;
+    for (const nr of (nsRetailRows||[])) {
+      if (!monthSet.has(nr.lead_month)) continue;
+      if (!allSrc && !filters.sources.has(nr.source))   continue;
+      if (!allSt  && !filters.states.has(nr.state))     continue;
+      if (!allCi  && !filters.cities.has(nr.city))      continue;
+      if (!allLt  && !filters.leadTypes.has(nr.lt))     continue;
+      if (!allMdl && !filters.models.has(nr.model))     continue;
+      const enqModel = nr.model || '';
+      const enqCat   = DISP_LM_CAT[enqModel];
+      const nsKey    = (nr.invoicedModel||'').toLowerCase().trim();
+      const nsCat    = DISP_NS_MODEL_CAT[nsKey];
+      const isSame   = enqCat !== undefined && nsCat !== undefined && nsCat === enqCat;
+      if (!byModel.has(enqModel)) byModel.set(enqModel, { same: 0, cross: 0 });
+      const e = byModel.get(enqModel);
+      if (isSame) e.same++; else e.cross++;
+    }
+    return byModel;
+  }
+
   // Render one dispersion card
-  function renderCard(title, byModel, drillDown, csvName, dispMonth) {
+  function renderCard(title, byModel, drillDown, nsMap, csvName, dispMonth) {
     if (!byModel || byModel.size === 0) return null;
-    const rows = [...byModel.entries()].map(([mi, v]) => ({
-      mi,
-      model: maps.mdl[mi],
-      same: v.same, cross: v.cross,
-      total: v.same + v.cross,
-      disp: (v.same + v.cross) > 0 ? v.cross / (v.same + v.cross) * 100 : 0,
-    })).filter(r => r.total > 0).sort((a, b) => b.total - a.total);
+    const rows = [...byModel.entries()].map(([mi, v]) => {
+      const model = maps.mdl[mi];
+      const ns = nsMap && nsMap.get(model);
+      const nsSame  = ns ? ns.same  : 0;
+      const nsCross = ns ? ns.cross : 0;
+      const nsTotal = nsSame + nsCross;
+      const nsDisp  = nsTotal > 0 ? nsCross / nsTotal * 100 : 0;
+      return {
+        mi, model,
+        same: v.same, cross: v.cross,
+        total: v.same + v.cross,
+        disp: (v.same + v.cross) > 0 ? v.cross / (v.same + v.cross) * 100 : 0,
+        nsSame, nsCross, nsTotal, nsDisp,
+      };
+    }).filter(r => r.total > 0).sort((a, b) => b.total - a.total);
     if (rows.length === 0) return null;
 
-    const grandSame  = rows.reduce((s, r) => s + r.same, 0);
-    const grandCross = rows.reduce((s, r) => s + r.cross, 0);
-    const grandTotal = grandSame + grandCross;
-    const grandDisp  = grandTotal > 0 ? grandCross / grandTotal * 100 : 0;
-    const maxDisp    = Math.max(...rows.map(r => r.disp), 1);
+    const grandSame   = rows.reduce((s, r) => s + r.same, 0);
+    const grandCross  = rows.reduce((s, r) => s + r.cross, 0);
+    const grandTotal  = grandSame + grandCross;
+    const grandDisp   = grandTotal > 0 ? grandCross / grandTotal * 100 : 0;
+    const maxDisp     = Math.max(...rows.map(r => r.disp), 1);
+    const nsGrandSame  = rows.reduce((s, r) => s + r.nsSame, 0);
+    const nsGrandCross = rows.reduce((s, r) => s + r.nsCross, 0);
+    const nsGrandTotal = nsGrandSame + nsGrandCross;
+    const nsGrandDisp  = nsGrandTotal > 0 ? nsGrandCross / nsGrandTotal * 100 : 0;
+
+    // column separator style
+    const sep = {borderLeft:'2px solid #CBD5E1'};
+    const oosTh = (extra) => ({...extra, background:'#7C3AED', color:'#fff'});
 
     return ce('div', { className:'card', style:{padding:'16px 18px',marginBottom:14,borderTop:'3px solid #003087'} },
       ce('div', { style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10} },
         ce('div', { className:'section-title', style:{marginBottom:0} }, title),
         ce('div',{style:{display:'flex',gap:0}},
           ce(CsvBtn, { onClick:() => {
-            const aoa = [['Enquired Model','Same','Cross','Total','Dispersion%']];
-            rows.forEach(r => aoa.push([r.model, r.same, r.cross, r.total, +r.disp.toFixed(2)]));
-            aoa.push(['Σ Grand Total', grandSame, grandCross, grandTotal, +grandDisp.toFixed(2)]);
+            const hdr = ['Enquired Model','WS Same','WS Cross','WS Total','Within Scope Disp%',
+                         'OOS Same','OOS Cross','OOS Total','Out of Scope Disp%'];
+            const aoa = [hdr];
+            rows.forEach(r => aoa.push([
+              r.model, r.same, r.cross, r.total, +r.disp.toFixed(2),
+              r.nsSame, r.nsCross, r.nsTotal, +r.nsDisp.toFixed(2),
+            ]));
+            aoa.push(['Σ Grand Total', grandSame, grandCross, grandTotal, +grandDisp.toFixed(2),
+                      nsGrandSame, nsGrandCross, nsGrandTotal, +nsGrandDisp.toFixed(2)]);
             exportCsv(aoa, csvName);
           }}),
           onDetailedCsv && ce(DetailedCsvBtn, { onClick:()=>onDetailedCsv('Dispersion', dispMonth||null) })
@@ -4712,26 +4792,30 @@ const DispersionTab = React.memo(function DispersionTab({ data, filters, months,
           ce('thead', null,
             ce('tr', null,
               ce('th', { className:'left', style:{minWidth:200} }, 'Enquired Model'),
-              ce('th', { style:{color:'#fff'} }, 'Same ✓'),
-              ce('th', { style:{color:'#fff'} }, 'Cross ✗'),
-              ce('th', null, 'Total'),
-              ce('th', { style:{minWidth:200} }, 'Dispersion %'),
+              ce('th', { style:{color:'#fff'} }, 'WS Same ✓'),
+              ce('th', { style:{color:'#fff'} }, 'WS Cross ✗'),
+              ce('th', null, 'WS Total'),
+              ce('th', { style:{minWidth:180} }, 'Within Scope Disp%'),
+              ce('th', { style:oosTh({...sep, minWidth:60}) }, 'OOS Same ✓'),
+              ce('th', { style:oosTh({}) }, 'OOS Cross ✗'),
+              ce('th', { style:oosTh({}) }, 'OOS Total'),
+              ce('th', { style:oosTh({minWidth:180}) }, 'Out of Scope Disp%'),
             )
           ),
           ce('tbody', null,
             ...rows.flatMap(r => {
               const barW = maxDisp > 0 ? Math.min(100, r.disp / maxDisp * 100) : 0;
               const barColor = r.disp < 20 ? '#22C55E' : r.disp < 35 ? '#F59E0B' : r.disp < 50 ? '#F97316' : '#EF4444';
+              const nsBarColor = r.nsDisp < 20 ? '#22C55E' : r.nsDisp < 35 ? '#F59E0B' : r.nsDisp < 50 ? '#F97316' : '#EF4444';
               const isExpanded = expandedModels.has(r.mi);
 
-              // Build sorted child rows for this enquired model (keys are dispersion categories)
               const childRows = (drillDown && drillDown.has(r.mi))
                 ? [...drillDown.get(r.mi).entries()]
                     .map(([cat, v]) => ({ purModel: cat, cnt: v.cnt, isSame: v.isSame }))
                     .filter(c => c.cnt > 0)
                     .sort((a, b) => {
-                      if (a.isSame !== b.isSame) return b.isSame - a.isSame; // Same first
-                      return b.cnt - a.cnt; // then by count desc
+                      if (a.isSame !== b.isSame) return b.isSame - a.isSame;
+                      return b.cnt - a.cnt;
                     })
                 : [];
 
@@ -4758,6 +4842,20 @@ const DispersionTab = React.memo(function DispersionTab({ data, filters, months,
                       r.disp.toFixed(1)+'%'
                     )
                   )
+                ),
+                ce('td', { style:{...sep,color:'#6D28D9',fontWeight:700} }, r.nsTotal > 0 ? Nf(r.nsSame) : '—'),
+                ce('td', { style:{color:'#7C3AED',fontWeight:700} }, r.nsTotal > 0 ? Nf(r.nsCross) : '—'),
+                ce('td', { style:{fontWeight:600} }, r.nsTotal > 0 ? Nf(r.nsTotal) : '—'),
+                ce('td', null, r.nsTotal > 0
+                  ? ce('div', { style:{display:'flex',alignItems:'center',gap:8} },
+                      ce('div', { style:{flex:1,background:'#F1F5F9',borderRadius:4,height:8,overflow:'hidden'} },
+                        ce('div', { style:{width:Math.min(100,r.nsDisp)+'%',height:'100%',background:nsBarColor,borderRadius:4,transition:'width .3s'} })
+                      ),
+                      ce('span', { style:{minWidth:42,textAlign:'right',fontWeight:700,color:nsBarColor,fontFamily:'DM Mono,monospace',fontSize:12} },
+                        r.nsDisp.toFixed(1)+'%'
+                      )
+                    )
+                  : ce('span',{style:{color:'#CBD5E1'}},'—')
                 )
               );
 
@@ -4776,7 +4874,9 @@ const DispersionTab = React.memo(function DispersionTab({ data, filters, months,
                   ce('td', { style:{fontSize:12,fontWeight:600,color:'#1E40AF',fontFamily:'DM Mono,monospace'} },
                     (c.cnt / r.total * 100).toFixed(1) + '%'
                   ),
-                  ce('td', null)
+                  ce('td', null),
+                  ce('td', { style:sep }),
+                  ce('td', null), ce('td', null), ce('td', null)
                 )
               );
 
@@ -4785,7 +4885,9 @@ const DispersionTab = React.memo(function DispersionTab({ data, filters, months,
                 ce('td', { style:{fontSize:12,fontWeight:700,color:'#1E40AF'} }, Nf(r.total)),
                 ce('td', null),
                 ce('td', { style:{fontSize:12,fontWeight:700,color:'#1E40AF',fontFamily:'DM Mono,monospace'} }, '100.0%'),
-                ce('td', null)
+                ce('td', null),
+                ce('td', { style:sep }),
+                ce('td', null), ce('td', null), ce('td', null)
               );
 
               return [parentRow, ...childTrs, subtotalTr];
@@ -4795,7 +4897,11 @@ const DispersionTab = React.memo(function DispersionTab({ data, filters, months,
               ce('td', { style:{color:'#16A34A',fontWeight:700} }, Nf(grandSame)),
               ce('td', { style:{color:'#DC2626',fontWeight:700} }, Nf(grandCross)),
               ce('td', { style:{fontWeight:700} }, Nf(grandTotal)),
-              ce('td', { style:{fontWeight:700,color:'#1A237E'} }, grandDisp.toFixed(1)+'%')
+              ce('td', { style:{fontWeight:700,color:'#1A237E'} }, grandDisp.toFixed(1)+'%'),
+              ce('td', { style:{...sep,color:'#6D28D9',fontWeight:700} }, Nf(nsGrandSame)),
+              ce('td', { style:{color:'#7C3AED',fontWeight:700} }, Nf(nsGrandCross)),
+              ce('td', { style:{fontWeight:700} }, Nf(nsGrandTotal)),
+              ce('td', { style:{fontWeight:700,color:'#6D28D9'} }, nsGrandDisp.toFixed(1)+'%')
             )
           )
         )
@@ -4819,6 +4925,10 @@ const DispersionTab = React.memo(function DispersionTab({ data, filters, months,
     months.map((M, idx) => ({ M, byModel: (monthlyDrillDowns[idx] && monthlyDrillDowns[idx].size > 0) ? buildTableFromDrillDown(monthlyDrillDowns[idx]) : buildTable(new Set([M])) })),
   [monthlyDrillDowns, rdm, maps, filters, months, rtCol]);
 
+  // NS (Out-of-Scope) dispersion maps — keyed by enquired model name (string, not mi index)
+  const allNsMap     = useMemo(() => buildNsDispersion(activeMonths),               [nsRetailRows, filters, activeMonths]);
+  const monthlyNsMaps = useMemo(() => months.map(M => buildNsDispersion(new Set([M]))), [nsRetailRows, filters, months]);
+
   return ce('div', { className:'fade-up' },
     rdm.length === 0 && ce('div',{className:'card',style:{padding:32,textAlign:'center',color:'#94A3B8'}},
       'No retail dispersion data. Ensure Retail Master contains a model/vehicle column and Aug 2026+ records.'),
@@ -4826,6 +4936,7 @@ const DispersionTab = React.memo(function DispersionTab({ data, filters, months,
       'Σ All Months — Retail Dispersion Summary',
       allMonthsMap,
       allDrillDown,
+      allNsMap,
       'Hero_Retail_Dispersion_AllMonths.csv',
       null
     ),
@@ -4834,6 +4945,7 @@ const DispersionTab = React.memo(function DispersionTab({ data, filters, months,
         'Retail Dispersion — ' + M,
         byModel,
         monthlyDrillDowns[idx],
+        monthlyNsMaps[idx],
         'Hero_Retail_Dispersion_' + M.replace(/[^a-z0-9]/gi, '_') + '.csv',
         M
       )
@@ -6581,7 +6693,7 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen,upgradeRequested,onRequ
       case 'cityxmodel':  return ce(CityModelTab,     props);
       case 'geodealer':       return ce(GeoAndDealerTab,      {...props,rawJoined:wIdFilteredRawJoined,leadsMode});
       case 'targetdelivery':  return ce(TargetDeliveryTab,   {data:wIdFilteredData,filters,RT,rawJoined:wIdFilteredRawJoined,leadsMode,viewerMode:noSource,clientMode});
-      case 'dispersion':      return ce(DispersionTab,       props);
+      case 'dispersion':      return ce(DispersionTab,       {...props,nsRetailRows});
       case 'pivot':       return ce(PivotTab,         {...props,rawJoined:wIdFilteredRawJoined,leadsMode});
       default: return null;
     }
