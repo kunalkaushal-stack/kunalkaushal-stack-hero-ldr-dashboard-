@@ -4965,7 +4965,7 @@ const DispersionTab = React.memo(function DispersionTab({ data, filters, months,
 /* ════════════════════════════════════════════════════════════════════
    FILTER BAR
    ════════════════════════════════════════════════════════════════════ */
-const FilterBar = React.memo(function FilterBar({ data, filters, onFiltersChange, RT, setRT, viewerMode, clientMode }) {
+const FilterBar = React.memo(function FilterBar({ data, filters, onFiltersChange, RT, setRT, viewerMode, clientMode, zoneAoOptions }) {
   const { maps } = data;
   const months    = useMemo(() => [...new Set(maps.lm)].sort((a,b) => monthOrder(b)-monthOrder(a)), [maps]);
   const leadTypes = useMemo(() => [...new Set(maps.lt)].sort(), [maps]);
@@ -4976,10 +4976,23 @@ const FilterBar = React.memo(function FilterBar({ data, filters, onFiltersChange
   const purMdls   = useMemo(() => maps.purMdl ? [...new Set(maps.purMdl)].filter(Boolean).sort() : [], [maps]);
   const webIds    = useMemo(() => [...new Set(maps.webId)].filter(w => w && w !== 'Unknown').sort(), [maps]);
 
-  function set(key, val) { onFiltersChange({ ...filters, [key]: val }); }
-  function reset() { onFiltersChange({ months: new Set(), leadTypes: new Set(), sources: new Set(), models: new Set(), states: new Set(), cities: new Set(), purMdls: new Set(), webIds: new Set() }); setRT('all'); }
+  const zoneOpts = useMemo(() => [...new Set((zoneAoOptions||[]).map(p => p.zone).filter(Boolean))].sort(), [zoneAoOptions]);
+  const aoOpts = useMemo(() => {
+    const zs = filters.zones && filters.zones.size > 0 ? filters.zones : null;
+    return [...new Set((zoneAoOptions||[]).filter(p => !zs || zs.has(p.zone)).map(p => p.ao).filter(Boolean))].sort();
+  }, [zoneAoOptions, filters.zones]);
 
-  const hasAnyFilter = [filters.months, filters.leadTypes, filters.sources, filters.models, filters.states, filters.cities, filters.purMdls, filters.webIds]
+  function set(key, val) {
+    if (key === 'zones' && filters.aos && filters.aos.size > 0) {
+      const allowed = new Set((zoneAoOptions||[]).filter(p => val.size === 0 || val.has(p.zone)).map(p => p.ao));
+      onFiltersChange({ ...filters, zones: val, aos: new Set([...filters.aos].filter(a => allowed.has(a))) });
+      return;
+    }
+    onFiltersChange({ ...filters, [key]: val });
+  }
+  function reset() { onFiltersChange({ months: new Set(), leadTypes: new Set(), sources: new Set(), models: new Set(), states: new Set(), cities: new Set(), purMdls: new Set(), webIds: new Set(), zones: new Set(), aos: new Set() }); setRT('all'); }
+
+  const hasAnyFilter = [filters.months, filters.leadTypes, filters.sources, filters.models, filters.states, filters.cities, filters.purMdls, filters.webIds, filters.zones, filters.aos]
     .some(s => s && s.size > 0) || RT !== 'all';
 
   const rtBtn = (val, label) => ce('button', {
@@ -4998,6 +5011,8 @@ const FilterBar = React.memo(function FilterBar({ data, filters, onFiltersChange
     !viewerMode && ce(MultiSelect, { label:'Lead Type', options:leadTypes, selected:filters.leadTypes, onChange: v => set('leadTypes', v) }),
     !viewerMode && ce(MultiSelect, { label:'Source',    options:sources,   selected:filters.sources,   onChange: v => set('sources', v) }),
     ce(MultiSelect, { label:'Model',     options:models,    selected:filters.models,    onChange: v => set('models', v) }),
+    ce(MultiSelect, { label:'Zone', options:zoneOpts, selected:filters.zones||new Set(), onChange: v => set('zones', v) }),
+    ce(MultiSelect, { label:'AO', options:aoOpts, selected:filters.aos||new Set(), onChange: v => set('aos', v) }),
     ce(MultiSelect, { label:'State',     options:states,    selected:filters.states,    onChange: v => set('states', v) }),
     cities.length > 0 && ce(MultiSelect, { label:'City', options:cities, selected:filters.cities, onChange: v => set('cities', v) }),
     purMdls.length > 0 && ce(MultiSelect, { label:'Purch. Model', options:purMdls, selected:filters.purMdls||new Set(), onChange: v => set('purMdls', v) }),
@@ -6285,7 +6300,7 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen,upgradeRequested,onRequ
   const [rawJoinedL1V,setRawJoinedL1V]=useState([]);
   const [dataL1V,setDataL1V]=useState(null);
   const [RT,setRT]=useState('all');
-  const [filters,setFilters]=useState({months:new Set(),leadTypes:new Set(),sources:new Set(),models:new Set(),states:new Set(),cities:new Set(),purMdls:new Set(),webIds:new Set()});
+  const [filters,setFilters]=useState({months:new Set(),leadTypes:new Set(),sources:new Set(),models:new Set(),states:new Set(),cities:new Set(),purMdls:new Set(),webIds:new Set(),zones:new Set(),aos:new Set()});
   const [isPending,startT]=useTransition();
   const [fontScale,setFontScale]=useState(1.00);
   useEffect(()=>{document.documentElement.style.setProperty('--dashboard-font-scale',fontScale);},[fontScale]);
@@ -6650,7 +6665,9 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen,upgradeRequested,onRequ
 
   const onDetailedCsv=useCallback((tabName,month)=>{
     const suffix=month?month.replace(/[^a-z0-9]/gi,'_'):'AllMonths';
-    exportDetailedCsv(rawJoined,filters,RT,leadsMode,'Hero_'+tabName+'_Detailed_'+suffix+'.csv',month||null,viewerMode,nsRetailRows);
+    const zf=filters.zones,af=filters.aos;
+    const zaOk=r=>(!zf||zf.size===0||zf.has(r.region||''))&&(!af||af.size===0||af.has(r.ao||''));
+    exportDetailedCsv((rawJoined||[]).filter(zaOk),filters,RT,leadsMode,'Hero_'+tabName+'_Detailed_'+suffix+'.csv',month||null,viewerMode,nsRetailRows.filter(zaOk));
   },[rawJoined,filters,RT,leadsMode,viewerMode,nsRetailRows]);
 
   const effectiveRawJoined=l1vMode?rawJoinedL1V:(rawJoined||[]);
@@ -6658,16 +6675,38 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen,upgradeRequested,onRequ
 
   // WebID pre-filter: when webIds filter is active, rebuild payload from filtered rawJoined
   // so ALL tabs see only the selected webId categories without per-tab changes.
+  const zoneAoOptions=useMemo(()=>{
+    const pairs=new Map();
+    for(const r of effectiveRawJoined){
+      const z=r.region||'',a=r.ao||'';
+      if(!z&&!a)continue;
+      pairs.set(z+'\u0001'+a,{zone:z,ao:a});
+    }
+    return[...pairs.values()];
+  },[effectiveRawJoined]);
+
+  const zaActive=!!((filters.webIds&&filters.webIds.size)||(filters.zones&&filters.zones.size)||(filters.aos&&filters.aos.size));
   const wIdFilteredRawJoined=useMemo(()=>{
-    const wf=filters.webIds;
-    if(!wf||wf.size===0)return effectiveRawJoined;
-    return effectiveRawJoined.filter(r=>wf.has(r.webId||'Unknown'));
-  },[effectiveRawJoined,filters.webIds]);
+    if(!zaActive)return effectiveRawJoined;
+    const wf=filters.webIds,zf=filters.zones,af=filters.aos;
+    return effectiveRawJoined.filter(r=>
+      (!wf||wf.size===0||wf.has(r.webId||'Unknown'))&&
+      (!zf||zf.size===0||zf.has(r.region||''))&&
+      (!af||af.size===0||af.has(r.ao||'')));
+  },[effectiveRawJoined,filters.webIds,filters.zones,filters.aos,zaActive]);
+
+  const nsRetailRowsF=useMemo(()=>{
+    const zf=filters.zones,af=filters.aos;
+    if((!zf||zf.size===0)&&(!af||af.size===0))return nsRetailRows;
+    return nsRetailRows.filter(r=>(!zf||zf.size===0||zf.has(r.region||''))&&(!af||af.size===0||af.has(r.ao||'')));
+  },[nsRetailRows,filters.zones,filters.aos]);
+
+  const filteredRawPayload=useMemo(()=>(zaActive&&wIdFilteredRawJoined.length)?buildPayload(wIdFilteredRawJoined):null,[zaActive,wIdFilteredRawJoined]);
 
   const wIdFilteredData=useMemo(()=>{
-    if(!filters.webIds||filters.webIds.size===0)return effectiveData;
+    if(!zaActive)return effectiveData;
     if(!wIdFilteredRawJoined.length)return effectiveData;
-    const raw=buildPayload(wIdFilteredRawJoined);
+    const raw=filteredRawPayload||buildPayload(wIdFilteredRawJoined);
     const base={...raw,retailTillDate:effectiveData&&effectiveData.retailTillDate};
     if(leadsMode==='create'||!base.bm_monthly)return base;
     return{
@@ -6680,7 +6719,7 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen,upgradeRequested,onRequ
       mlt:base.mlt||[],stlt:base.stlt||[],cdm:base.cdm||[],cdsm:base.cdsm||[],
       stcm:base.stcm||[],disp:base.disp||[],
     };
-  },[wIdFilteredRawJoined,filters.webIds,effectiveData,leadsMode]);
+  },[wIdFilteredRawJoined,zaActive,filteredRawPayload,effectiveData,leadsMode]);
 
   const tabContent=useMemo(()=>{
     if(!effectiveData)return null;
@@ -6691,21 +6730,21 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen,upgradeRequested,onRequ
     const props={data:wIdFilteredData,filters,months,RT,viewerMode:noSource,clientMode,onDetailedCsv:clientDetailedCsv};
     switch(tab){
       case 'overview':    return ce(OverviewTab,      props);
-      case 'source':      return ce(SourceTab,        {...props,rawData:effectiveRawData,nsRetailRows,rawJoined:wIdFilteredRawJoined});
-      case 'webid':       return ce(WebIdTab,         {...props,rawJoined:wIdFilteredRawJoined,leadsMode,nsRetailRows});
+      case 'source':      return ce(SourceTab,        {...props,rawData:(filteredRawPayload||effectiveRawData),nsRetailRows:nsRetailRowsF,rawJoined:wIdFilteredRawJoined});
+      case 'webid':       return ce(WebIdTab,         {...props,rawJoined:wIdFilteredRawJoined,leadsMode,nsRetailRows:nsRetailRowsF});
       case 'ltxsrc':      return ce(LTSourceTab,      props);
       case 'modelxsrc':   return ce(ModelSourceTab,   props);
-      case 'statexsrc':   return ce(StateSourceTab,   {...props,rawJoined:wIdFilteredRawJoined,leadsMode,nsRetailRows});
+      case 'statexsrc':   return ce(StateSourceTab,   {...props,rawJoined:wIdFilteredRawJoined,leadsMode,nsRetailRows:nsRetailRowsF});
       case 'cityxsrc':    return ce(CitySourceTab,    props);
       case 'statexmodel': return ce(StateModelTab,    props);
       case 'cityxmodel':  return ce(CityModelTab,     props);
       case 'geodealer':       return ce(GeoAndDealerTab,      {...props,rawJoined:wIdFilteredRawJoined,leadsMode});
       case 'targetdelivery':  return ce(TargetDeliveryTab,   {data:wIdFilteredData,filters,RT,rawJoined:wIdFilteredRawJoined,leadsMode,viewerMode:noSource,clientMode});
-      case 'dispersion':      return ce(DispersionTab,       {...props,nsRetailRows});
+      case 'dispersion':      return ce(DispersionTab,       {...props,nsRetailRows:nsRetailRowsF});
       case 'pivot':       return ce(PivotTab,         {...props,rawJoined:wIdFilteredRawJoined,leadsMode});
       default: return null;
     }
-  },[tab,data,dataL1V,effectiveData,wIdFilteredData,effectiveRawData,effectiveRawJoined,wIdFilteredRawJoined,filters,months,RT,viewerMode,clientMode,onDetailedCsv,leadsMode,l1vMode,nsRetailRows]);
+  },[tab,data,dataL1V,effectiveData,wIdFilteredData,effectiveRawData,effectiveRawJoined,wIdFilteredRawJoined,filters,months,RT,viewerMode,clientMode,onDetailedCsv,leadsMode,l1vMode,nsRetailRowsF,filteredRawPayload]);
 
   if(!effectiveData)return ce(HeroSyncScreen,{onSync:handleSync,syncing,syncErr});
 
@@ -6793,7 +6832,7 @@ function App({fbUser,role,presence,onSignOut,onAdminOpen,upgradeRequested,onRequ
     ),
     /* Filter bar */
     ce('div',{style:{maxWidth:1700,margin:'0 auto',padding:'14px 16px 0',opacity:isPending?0.6:1,transition:'opacity .15s'}},
-      ce(FilterBar,{data:effectiveData,filters,onFiltersChange:f=>startT(()=>setFilters(f)),RT,setRT,viewerMode:viewerMode||clientMode,clientMode})
+      ce(FilterBar,{data:effectiveData,filters,onFiltersChange:f=>startT(()=>setFilters(f)),RT,setRT,viewerMode:viewerMode||clientMode,clientMode,zoneAoOptions})
     ),
     /* Tab content */
     ce('div',{style:{maxWidth:1700,margin:'0 auto',padding:'14px 16px 32px'}},
