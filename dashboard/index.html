@@ -5450,6 +5450,8 @@ const PivotTab = React.memo(function PivotTab({ data, filters, months, RT, onDet
     { key:'st',   label:'State'     },
     { key:'lt',   label:'Lead Type' },
     { key:'city', label:'City'      },
+    { key:'zone', label:'Zone'      },
+    { key:'ao',   label:'AO'        },
   ];
 
   const METRICS = [
@@ -5544,6 +5546,8 @@ const PivotTab = React.memo(function PivotTab({ data, filters, months, RT, onDet
         case 'st':   return r.state   || 'Unknown';
         case 'lt':   return r.lt      || 'Unknown';
         case 'city': return r.city    || 'Unknown';
+        case 'zone': return r.region  || 'Unknown';
+        case 'ao':   return r.ao      || 'Unknown';
         default:     return '?';
       }
     };
